@@ -227,8 +227,11 @@ deployment bakes it:
 vendor/bin/drush n8n:set-url http://localhost:5678
 vendor/bin/drush n8n:set-key n8n_api_key
 vendor/bin/drush n8n:test
-vendor/bin/drush n8n:models
 ```
+
+> Those three are all that exist today. The README also documents `n8n:models` and
+> `n8n:chat` — that file is the **specification**, written before the code, so it
+> describes the finished product rather than the current one.
 
 ### The fast loop: iterate against the live cluster
 

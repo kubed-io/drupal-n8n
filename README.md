@@ -9,6 +9,14 @@ Use your n8n AI agents as Drupal AI Assistants. Your agent — with its own mode
 [![Drupal](https://img.shields.io/badge/Drupal-10--11-0678BE?logo=drupal&logoColor=white)](https://www.drupal.org)
 [![PHP](https://img.shields.io/badge/PHP-%E2%89%A58.3-777bb4?logo=php&logoColor=white)](composer.json)
 
+> **Status — this README is the specification.** It was written before the code, and
+> it describes the finished product so that the code has something to be measured
+> against. Today the **connection** is real: install the modules, set a URL and a
+> key, and **Test connection** works from the UI and from drush. Everything past
+> that — model discovery, chatting with an agent, the session bridge, the webform
+> handler — is specified here and in [`features/`](features/), but not yet built.
+> Follow along in [`saga/`](saga/).
+
 ---
 
 ## How It Works

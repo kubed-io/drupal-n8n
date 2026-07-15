@@ -20,7 +20,28 @@
 
 ---
 
-## Where we are — 2026-07-15
+## Where we are — 2026-07-15 (evening)
+
+> **The engine turned over.** On the live cluster, from the install Job:
+>
+> ```
+> setup/n8n.php: Key 'n8n_api_key' already current.
+> + drush n8n:set-url 'http://n8n.flow.svc.cluster.local'
+>  [success] n8n base URL set to http://n8n.flow.svc.cluster.local
+> + drush n8n:set-key 'n8n_api_key'
+>  [success] n8n API key will be read from the n8n_api_key key.
+> + drush n8n:test
+>  [success] Connected to n8n.
+> setup/n8n.php: connected to n8n at http://n8n.flow.svc.cluster.local.
+> ```
+>
+> A real Drupal, a real 1Password-sourced read-only key, a real n8n. Test
+> connection is green in the UI. **We are not out of the driveway — but the van
+> starts, and it knows the address.**
+
+---
+
+## The longer version
 
 **The repo is real and green.** [github.com/kubed-io/drupal-n8n](https://github.com/kubed-io/drupal-n8n),
 GPL-2.0-or-later, main gated by a ruleset, four PRs merged.
@@ -689,32 +710,40 @@ to an agent yet. That is deliberate — see §8.5.
   the merge gate red, then removed it. An empty tab is now trustworthy. **Do this
   again whenever a gate's healthy state is indistinguishable from its broken one.**
 
-### Phase 3 — Knowing where n8n lives ☐ **IN PROGRESS**
+### Phase 3 — Knowing where n8n lives ◑ **THE CONNECTION WORKS; THE SPEC IS NOT WIRED**
 - **Goal:** an admin registers an n8n instance and proves it works, from the UI and
-  from the CLI. **This is the gate every other feature depends on** — every scenario
-  in `features/` opens with "given the connection is configured and verified".
+  from the CLI. **The gate every other feature depends on** — every scenario in
+  `features/` opens with "given the connection is configured and verified".
 - **Shape — deliberately the sibling's:** a URL, a token, a **Test connection**
-  button. `nextcloud-n8n` landed on that shape after real use; we copy the
-  conclusion rather than re-derive it. It also sets the house style for every admin
-  screen after it.
-- **Scope — global only. Domain-awareness is Phase 4.**
-  - The settings form and `N8nClient::testConnection()` exist. **Neither is tested,
-    and neither has been run against a real n8n.**
-  - **Unit tests** for `N8nClient` with a mocked transport: URL normalisation, the
-    `X-N8N-API-KEY` header, the friendly-error mapping for 401/403/404/timeout, and
-    `isConfigured()`.
-  - **Drush commands** — `n8n:set-url`, `n8n:set-key`, `n8n:test`. Not a
-    convenience: the cluster bakes the connection with no human at a form, and a
-    non-zero exit is what lets an install script fail loudly.
-  - **Wire `admin-connection.feature`** — drop its `@todo`, implement the steps
-    against the ephemeral n8n. The first live feature in the pipeline.
-- **Exit:**
-  1. Unit tests green for the client's behaviour, including every error path.
-  2. `admin-connection.feature` runs **live** in `integration.yml` — a real Test
-     connection against a real n8n, and a real failure against a bad key.
-  3. `drush n8n:test` exits 0 configured, non-zero broken.
-  4. An admin does it by hand on the live pod and it works.
-- **Depends on:** P1, P2. **Decides:** the admin-screen house style.
+  button. `nextcloud-n8n` landed on that after real use; we copied the conclusion.
+- **Delivered:**
+  - `N8nClient` + settings form + `drush n8n:set-url|set-key|test`. The CLI is not
+    a convenience: `apps/drupal`'s install Job bakes the connection with nobody at
+    a form, and a non-zero exit is what lets it fail loudly.
+  - **12 unit tests, 104 assertions**, driving the client over a Guzzle
+    `MockHandler` + history middleware — so they assert the **outgoing request**,
+    not just the parsed reply: that we ask for one workflow rather than all of
+    them, that the key travels as `X-N8N-API-KEY` and not `Authorization`, that the
+    timeout reaches the transport, that an unconfigured client makes no request.
+  - **Live on the cluster**: `apps/drupal` ships the module, pulls the key from
+    `op://Homelab/Drupal Admin/N8N/api_key`, and the install Job **verifies** the
+    connection. Test connection is green in the UI.
+- **Exit — 3 of 4:**
+  1. ✅ Unit tests green, including every error path.
+  2. ☐ `admin-connection.feature` running **live** in `integration.yml` — still
+     `@todo`. **This is the last piece.**
+  3. ✅ `drush n8n:test` exits 0 configured, non-zero broken — both observed.
+  4. ✅ An admin does it by hand on the live pod and it works.
+- **What it cost, and what that bought:** three deploys. Both failures were mine,
+  and both were the same mistake — **guessing an API instead of reading it**:
+  `N8nCommands::create($container)` called in-process (a `DrushCommands` logger only
+  exists when Drush builds the command), then an invented
+  `Key::getKeyProviderSettings()`. The same error as the domain-config probe in
+  §9.1. **The verify step is why each cost minutes**: every failure landed loudly in
+  a Job, against a real site, while the old pod kept serving. Nothing reached a
+  visitor. If `setup/n8n.php` had only *configured*, the site would have booted
+  green with a connection nobody had ever exercised.
+- **Decides:** the admin-screen house style — now set.
 
 ### Phase 4 — The same thing, per domain ☐ **FOUND MID-CHAPTER**
 - **How this got here:** Kelly asked what an "Enable/Remove domain configuration"
@@ -903,9 +932,15 @@ Standing, not closing:
 3. ✅ The repo is public, CI is green, and every gate has been proven by watching it
    fail and then pass.
 4. ✅ Nobody has written a line of JavaScript.
-5. ☐ **Phase 3** — an admin registers an n8n instance and it works: UI, drush, and
-   `admin-connection.feature` live in the pipeline.
+5. ◑ **Phase 3** — an admin registers an n8n instance and it works. **The
+   connection is live on the cluster and green in the UI**; 12 unit tests assert
+   the outgoing request. What is left: dropping `@todo` from
+   `admin-connection.feature` so the pipeline proves it too.
 6. ☐ **Phase 4** — the same, per domain, with the drush/UI divergence made loud.
+
+We are at the tail of this chapter, in the transition. The engine turned over; the
+van has not left the driveway. What that means concretely: **the connection is a
+finished thing, and everything after it is still a specification.**
 
 ---
 
@@ -923,10 +958,31 @@ Quality**.
 > bit `nextcloud-n8n`. Same reason `PHPUnit PHP 8.3` is not required: it only runs on
 > main.
 
-**Merged so far**: #1 the skeleton + spec + CI · #3 dependabot hygiene · #4 the
-drupal.org composer facade. (#2 was Dependabot's phpunit bump, superseded — phpunit
-13 needs PHP ≥8.4.1 and we support ≥8.3, so the constraint is `^11.5 || ^12 || ^13`
-and phpunit majors stop being a decision.)
+**Merged so far** — `drupal-n8n`: #1 skeleton + spec + CI · #3 dependabot hygiene ·
+#4 the drupal.org composer facade · #5 milestone docs · #6 the re-scope · #7
+package hygiene + testing from source. (#2 was Dependabot's phpunit bump,
+superseded — phpunit 13 needs PHP ≥8.4.1 and we support ≥8.3, so the constraint is
+`^11.5 || ^12 || ^13` and phpunit majors stop being a decision.)
+
+**Merged so far** — `kubed-io/drupal`: #16 wires the module into the image and the
+site · #17 run the drush commands as subprocesses · #18 the Key entity's real API.
+
+**Testing, as built** (§7 argued it; this is what exists): PHPUnit runs from
+**source** via **core's** phpunit config — `./vendor/bin/phpunit -c web/core
+web/modules/contrib/n8n`. We ship no phpunit.xml.dist: ours had a relative
+bootstrap that only resolved in one layout, which forced `symlink:false`, which
+forced a copy, which let `export-ignore` strip the tests, which needed a step to
+copy them back. Core's bootstrap is relative to `core/` and always right. Deleting
+one file collapsed the whole chain.
+
+**Packaging, as built**: `.gitattributes` `export-ignore` decides what ships —
+composer's `vcs` repo downloads a **zip from GitHub's API**, not a clone, so that
+file is the only thing keeping our saga and tests out of `web/modules/contrib/n8n`
+on production. 310K → 90K. `quality.yml` asserts it against `git archive`, because
+CI deliberately dirties its own copy and would otherwise never notice a regression.
+GitHub Packages was never an option — GitHub closed "Packages: PHP support" as
+`not_planned` in 2023 — and `drupal/*` on Packagist belongs to the Drupal
+Association. Neither turned out to matter.
 
 **The fast loop**: `./dev.sh` pushes this working copy into the live Drupal pod.
 `enable` · `probe <file.php>` · `heal` · `remove`.

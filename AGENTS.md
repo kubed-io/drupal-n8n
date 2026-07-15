@@ -119,16 +119,21 @@ When you need "how does Drupal do this?", look here **before inventing**:
 ## Core commands
 
 ```sh
-composer run test:unit      # PHPUnit Unit + Kernel
+# From a Drupal root. We use CORE's phpunit config, not our own — see CONTRIBUTING.
+./vendor/bin/phpunit -c web/core --testdox web/modules/contrib/n8n
 composer run cs:fix         # Drupal coding standards
 composer run stan           # PHPStan
 
-cd tests/integration && vendor/bin/behat --config behat.dist.yml
+vendor/bin/behat --config behat.dist.yml   # from tests/integration/
 
+drush n8n:set-url <url>     # point the site at n8n
+drush n8n:set-key <key_id>  # a Key entity's name, never the secret
 drush n8n:test              # headless "Test connection"
-drush n8n:models            # what Drupal can see
-drush n8n:chat <id> "hi"    # smoke-test one agent
 ```
+
+**These three are all that exist.** The README also documents `n8n:models` and
+`n8n:chat` — those are **spec, not code**; they arrive with model discovery in
+Chapter 2. Do not cite them as if they work.
 
 ## Process — short version
 
