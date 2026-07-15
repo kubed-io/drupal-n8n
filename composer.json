@@ -37,7 +37,7 @@
     "drupal/webform": "Required by the n8n_webform submodule — form submissions to n8n."
   },
   "scripts": {
-    "test:unit": "phpunit --configuration phpunit.xml.dist",
+    "test:unit": "@php -r \"fwrite(STDERR, 'Run from a Drupal root: ./vendor/bin/phpunit -c web/core --group n8n' . PHP_EOL); exit(1);\"",
     "cs:check": "phpcs",
     "cs:fix": "phpcbf",
     "stan": "phpstan analyse --memory-limit=512M"

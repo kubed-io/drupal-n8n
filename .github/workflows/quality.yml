@@ -73,10 +73,10 @@ jobs:
         composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
         composer config minimum-stability dev
         composer config prefer-stable true
-        # symlink:false so the module is COPIED to web/modules/contrib/n8n.
-        # With a symlink, relative paths in phpunit.xml.dist resolve against
-        # the working tree and cannot find core.
-        composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
+        # Symlinked (composer's default): web/modules/contrib/n8n IS the working
+        # tree, so phpcs and phpstan read the source — including the configs that
+        # .gitattributes keeps out of the shipped package.
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
         # drush is needed at ANALYSIS time, not just runtime: without it PHPStan
         # reads src/Drush/Commands as "extends unknown class" and "attribute class
         # Drush\Attributes\Command does not exist" — the analyser is not wrong, it
@@ -94,25 +94,6 @@ jobs:
           jbelien/phpstan-sarif-formatter \
           --no-interaction --no-progress
 
-    # composer installed the module exactly as a site gets it — which, thanks to
-    # .gitattributes export-ignore, has no tests, no phpunit.xml.dist and no
-    # quality configs in it. That is the point of the package; it is also useless
-    # to test. Copy the dev-only files back over the installed copy so we test the
-    # SHIPPED tree plus the suites that prove it. "Package is clean" is asserted
-    # separately, by the archive check.
-    - name: Restore the dev-only files over the installed package
-      run: |
-        dest="$DRUPAL_DIR/web/modules/contrib/$MODULE"
-        for p in tests features phpunit.xml.dist phpcs.xml.dist phpstan.neon; do
-          [ -e "$GITHUB_WORKSPACE/module/$p" ] && cp -r "$GITHUB_WORKSPACE/module/$p" "$dest/"
-        done
-        # Submodule suites are export-ignored too.
-        for d in "$GITHUB_WORKSPACE"/module/modules/*/tests; do
-          [ -d "$d" ] || continue
-          m=$(basename "$(dirname "$d")")
-          cp -r "$d" "$dest/modules/$m/"
-        done
-        test -f "$dest/phpunit.xml.dist" || { echo "::error::restore failed"; exit 1; }
 
     # The tests deliberately copy dev files back over the installed package, so
     # nothing else would notice if export-ignore silently stopped working. This

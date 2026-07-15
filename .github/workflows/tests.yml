@@ -95,10 +95,10 @@ jobs:
     - name: Require the module from the working tree
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        # symlink:false so the module is COPIED to web/modules/contrib/n8n.
-        # With a symlink, relative paths in phpunit.xml.dist resolve against
-        # the working tree and cannot find core.
-        composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
+        # A path repo SYMLINKS by default, which is what we want: web/modules/
+        # contrib/n8n becomes the working tree, so the tests below run from
+        # SOURCE rather than from a copy.
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
         composer require "drupal/$MODULE:*" drupal/ai drupal/key \
           --no-interaction --no-progress
         # PIN core-dev to the core major. Unconstrained, composer silently
@@ -108,25 +108,6 @@ jobs:
         composer require --dev "drupal/core-dev:^11" -W \
           --no-interaction --no-progress
 
-    # composer installed the module exactly as a site gets it — which, thanks to
-    # .gitattributes export-ignore, has no tests, no phpunit.xml.dist and no
-    # quality configs in it. That is the point of the package; it is also useless
-    # to test. Copy the dev-only files back over the installed copy so we test the
-    # SHIPPED tree plus the suites that prove it. "Package is clean" is asserted
-    # separately, by the archive check.
-    - name: Restore the dev-only files over the installed package
-      run: |
-        dest="$DRUPAL_DIR/web/modules/contrib/$MODULE"
-        for p in tests features phpunit.xml.dist phpcs.xml.dist phpstan.neon; do
-          [ -e "$GITHUB_WORKSPACE/module/$p" ] && cp -r "$GITHUB_WORKSPACE/module/$p" "$dest/"
-        done
-        # Submodule suites are export-ignored too.
-        for d in "$GITHUB_WORKSPACE"/module/modules/*/tests; do
-          [ -d "$d" ] || continue
-          m=$(basename "$(dirname "$d")")
-          cp -r "$d" "$dest/modules/$m/"
-        done
-        test -f "$dest/phpunit.xml.dist" || { echo "::error::restore failed"; exit 1; }
 
     # Fail here, loudly, rather than 20 lines later with exit 127.
     - name: Verify the test harness installed
@@ -140,11 +121,20 @@ jobs:
         ./vendor/bin/phpunit --version
 
     # ── Act: everything is provisioned; now run the suite ────────────────────
+    #
+    # Uses CORE's phpunit config, which is how drupal.org's own CI runs contrib.
+    # Two reasons it beats shipping our own:
+    #   - its bootstrap is `tests/bootstrap.php`, relative to core/, so it is
+    #     correct wherever the module lives — no fragile ../../.. to get wrong;
+    #   - its unit/kernel suites already glob `../modules/*/**/tests/src/*`, so a
+    #     contrib module at web/modules/contrib/n8n is found automatically.
+    # --group n8n is what scopes it to us rather than all of core.
     - name: Run PHPUnit
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
         ./vendor/bin/phpunit \
-          -c "web/modules/contrib/$MODULE/phpunit.xml.dist" \
+          -c web/core \
+          --group n8n \
           --log-junit "$GITHUB_WORKSPACE/junit.xml" \
           --testdox
 

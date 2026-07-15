@@ -44,4 +44,5 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 - Saga: domain-aware configuration is now in scope, and how domain overrides actually behave is recorded.
 - CI steps declare where they run instead of hiding it in a `cd`.
 - The installed package no longer carries the test suite, the CI config or the saga — 71% smaller.
+- Tests run against the source using Drupal core's own PHPUnit config, the way drupal.org runs contrib.
 - PHPStan reports through code scanning, so findings show up in the Security tab and as PR annotations.

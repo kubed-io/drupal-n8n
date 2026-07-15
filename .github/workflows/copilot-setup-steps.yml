@@ -64,10 +64,7 @@ jobs:
         composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
         composer config minimum-stability dev
         composer config prefer-stable true
-        # symlink:false so the module is COPIED to web/modules/contrib/n8n — the
-        # same reason CI does it: relative paths in phpunit.xml.dist resolve
-        # against the Drupal root, not the working tree.
-        composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
         composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
           --no-interaction --no-progress
         # Pinned to the core major: unconstrained, composer backtracks to

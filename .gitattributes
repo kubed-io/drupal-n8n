@@ -41,7 +41,8 @@ CHANGELOG.md                merge=union
 /features                   export-ignore
 tests                       export-ignore
 
-# Dev tooling: the live-pod loop and the quality configs.
+# Dev tooling: the live-pod loop and the quality configs. (There is no
+# phpunit.xml.dist — we use core's, which is how drupal.org runs contrib.)
 /dev.sh                     export-ignore
 /phpcs.xml.dist             export-ignore
 /phpstan.neon               export-ignore
