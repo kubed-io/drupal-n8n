@@ -27,12 +27,18 @@ updates:
   labels:
   - dependencies
   - github-actions
+  # The changelog gate skips a PR carrying this exact label. Dependabot cannot
+  # write a CHANGELOG entry, so it applies its own exemption.
+  - no changelog
   commit-message:
     prefix: ci(deps)
+  # NOTE: github-actions supports only `default-days` here. The semver-* keys are
+  # valid for composer/npm but Dependabot rejects the WHOLE FILE if they appear
+  # under github-actions:
+  #   "The property '#/updates/0/cooldown/semver-minor-days' is not supported
+  #    for the package ecosystem 'github-actions'"
   cooldown:
     default-days: 3
-    semver-minor-days: 7
-    semver-patch-days: 3
   groups:
     actions-minor-patch:
       update-types:
@@ -50,6 +56,7 @@ updates:
   labels:
   - dependencies
   - php
+  - no changelog
   commit-message:
     prefix: deps(php)
     prefix-development: deps-dev(php)
@@ -77,6 +84,7 @@ updates:
   - dependencies
   - php
   - tests
+  - no changelog
   commit-message:
     prefix: deps(behat)
     prefix-development: deps-dev(behat)

@@ -47,15 +47,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-        # The floor: composer.json says php >=8.3, and Drupal 11's own minimum is
-        # 8.3. If this breaks, our stated support is a lie.
-        - drupal: '^11'
-          php: '8.3'
-        # What the production pod actually runs — verified, not assumed:
-        # PHP 8.5.8, Drupal 11.4.2. This is the one that must be green.
-        - drupal: '^11'
-          php: '8.5'
+        # A PR runs ONLY the production PHP: fast feedback, and one test-result
+        # comment instead of one per version. The full sweep — 8.3, our stated
+        # floor, through 8.5, what the pod actually runs — happens on merge to
+        # main, where latency blocks nobody.
+        #
+        # Consequence, and it matters: "PHPUnit PHP 8.3" never reports on a PR, so
+        # it must NOT be a required status check or every PR would hang waiting
+        # for it. Only "PHPUnit PHP 8.5" is required.
+        php: ${{ fromJSON(github.event_name == 'pull_request' && '["8.5"]' || '["8.3","8.5"]') }}
 
     steps:
     # ── Provision: everything installed up front, before any work happens ─────
@@ -73,10 +73,8 @@ jobs:
         tools: composer:v2
 
     - name: Build a throwaway Drupal
-      env:
-        DRUPAL_VERSION: ${{ matrix.drupal }}
       run: |
-        composer create-project "drupal/recommended-project:$DRUPAL_VERSION" "$DRUPAL_DIR" \
+        composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
         cd "$DRUPAL_DIR"
         composer config --no-plugins allow-plugins.composer/installers true
@@ -122,7 +120,7 @@ jobs:
         cd "$DRUPAL_DIR"
         ./vendor/bin/phpunit \
           -c "web/modules/contrib/$MODULE/phpunit.xml.dist" \
-          --log-junit junit.xml \
+          --log-junit "$GITHUB_WORKSPACE/junit.xml" \
           --testdox
 
     - name: Publish test results
@@ -130,5 +128,5 @@ jobs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         check_name: PHPUnit results PHP ${{ matrix.php }}
-        files: /tmp/drupal/junit.xml
+        files: junit.xml
         comment_mode: always

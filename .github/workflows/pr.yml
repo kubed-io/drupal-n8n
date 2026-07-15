@@ -7,6 +7,9 @@ on:
   pull_request:
     branches:
     - main
+    # labeled/unlabeled so applying the `no changelog` label re-runs the gate with
+    # a fresh payload — otherwise the check stays red after you label it.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
