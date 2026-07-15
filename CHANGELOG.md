@@ -37,4 +37,5 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 ### Changed
 
 - CI now targets PHP 8.5, the version the production pod runs.
+- Dependabot PRs are assigned and skip the changelog gate.
 - PHPStan reports through code scanning, so findings show up in the Security tab and as PR annotations.
