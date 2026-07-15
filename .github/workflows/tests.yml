@@ -108,6 +108,26 @@ jobs:
         composer require --dev "drupal/core-dev:^11" -W \
           --no-interaction --no-progress
 
+    # composer installed the module exactly as a site gets it — which, thanks to
+    # .gitattributes export-ignore, has no tests, no phpunit.xml.dist and no
+    # quality configs in it. That is the point of the package; it is also useless
+    # to test. Copy the dev-only files back over the installed copy so we test the
+    # SHIPPED tree plus the suites that prove it. "Package is clean" is asserted
+    # separately, by the archive check.
+    - name: Restore the dev-only files over the installed package
+      run: |
+        dest="$DRUPAL_DIR/web/modules/contrib/$MODULE"
+        for p in tests features phpunit.xml.dist phpcs.xml.dist phpstan.neon; do
+          [ -e "$GITHUB_WORKSPACE/module/$p" ] && cp -r "$GITHUB_WORKSPACE/module/$p" "$dest/"
+        done
+        # Submodule suites are export-ignored too.
+        for d in "$GITHUB_WORKSPACE"/module/modules/*/tests; do
+          [ -d "$d" ] || continue
+          m=$(basename "$(dirname "$d")")
+          cp -r "$d" "$dest/modules/$m/"
+        done
+        test -f "$dest/phpunit.xml.dist" || { echo "::error::restore failed"; exit 1; }
+
     # Fail here, loudly, rather than 20 lines later with exit 127.
     - name: Verify the test harness installed
       working-directory: ${{ env.DRUPAL_DIR }}

@@ -94,6 +94,43 @@ jobs:
           jbelien/phpstan-sarif-formatter \
           --no-interaction --no-progress
 
+    # composer installed the module exactly as a site gets it — which, thanks to
+    # .gitattributes export-ignore, has no tests, no phpunit.xml.dist and no
+    # quality configs in it. That is the point of the package; it is also useless
+    # to test. Copy the dev-only files back over the installed copy so we test the
+    # SHIPPED tree plus the suites that prove it. "Package is clean" is asserted
+    # separately, by the archive check.
+    - name: Restore the dev-only files over the installed package
+      run: |
+        dest="$DRUPAL_DIR/web/modules/contrib/$MODULE"
+        for p in tests features phpunit.xml.dist phpcs.xml.dist phpstan.neon; do
+          [ -e "$GITHUB_WORKSPACE/module/$p" ] && cp -r "$GITHUB_WORKSPACE/module/$p" "$dest/"
+        done
+        # Submodule suites are export-ignored too.
+        for d in "$GITHUB_WORKSPACE"/module/modules/*/tests; do
+          [ -d "$d" ] || continue
+          m=$(basename "$(dirname "$d")")
+          cp -r "$d" "$dest/modules/$m/"
+        done
+        test -f "$dest/phpunit.xml.dist" || { echo "::error::restore failed"; exit 1; }
+
+    # The tests deliberately copy dev files back over the installed package, so
+    # nothing else would notice if export-ignore silently stopped working. This
+    # asserts the actual artifact a site downloads — composer's vcs repo fetches a
+    # zip from GitHub's API, and that zip is exactly `git archive`.
+    - name: Package must not ship the repo
+      working-directory: module
+      run: |
+        leaked=$(git archive --format=tar HEAD | tar -t \
+          | grep -E '^(tests/|features/|saga/|\.github/|dev\.sh|phpunit|phpcs|phpstan)|/tests/' || true)
+        if [ -n "$leaked" ]; then
+          echo "::error::.gitattributes export-ignore is not holding — these would ship to a site:"
+          echo "$leaked"
+          exit 1
+        fi
+        echo "✅ package is clean" >> "$GITHUB_STEP_SUMMARY"
+        git archive --format=tar HEAD | tar -t | sed 's#/.*##' | sort -u | tr '\n' ' ' >> "$GITHUB_STEP_SUMMARY"
+
     # ── Act ──────────────────────────────────────────────────────────────────
     # Audit from the Drupal root, not the module. A Drupal contrib module ships no
     # composer.lock by design — the *site* owns dependency resolution — so there is
