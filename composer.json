@@ -14,6 +14,12 @@
     "issues": "https://github.com/kubed-io/drupal-n8n/issues",
     "source": "https://github.com/kubed-io/drupal-n8n"
   },
+  "repositories": {
+    "drupal": {
+      "type": "composer",
+      "url": "https://packages.drupal.org/8"
+    }
+  },
   "require": {
     "php": ">=8.3",
     "drupal/key": "^1.18"
