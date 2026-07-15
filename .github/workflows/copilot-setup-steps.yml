@@ -67,8 +67,6 @@ jobs:
         composer config repositories.module path "$GITHUB_WORKSPACE/module"
         composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
           --no-interaction --no-progress
-        # Pinned to the core major: unconstrained, composer backtracks to
-        # drupal/core-dev 8.0.0-beta15 and you get no phpunit at all.
         composer require --dev "drupal/core-dev:^11" -W \
           --no-interaction --no-progress
         composer require --dev drupal/coder mglaman/phpstan-drupal \

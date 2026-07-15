@@ -63,6 +63,15 @@ jobs:
         composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
 
+    # Symlinked (composer's default), so web/modules/contrib/n8n IS the working
+    # tree and phpcs/phpstan read the source — including the configs .gitattributes
+    # keeps out of the shipped package.
+    #
+    # drush is needed at ANALYSIS time, not just runtime: without it PHPStan reads
+    # src/Drush/Commands as "extends unknown class". core-dev brings PHPUnit, without
+    # which every assertion in tests/ reads as an undefined method. Both are the same
+    # failure mode — the analyser is not wrong, it is under-equipped. core-dev is
+    # pinned for the same reason tests.yml pins it.
     - name: Configure composer
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
@@ -73,20 +82,9 @@ jobs:
         composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
         composer config minimum-stability dev
         composer config prefer-stable true
-        # Symlinked (composer's default): web/modules/contrib/n8n IS the working
-        # tree, so phpcs and phpstan read the source — including the configs that
-        # .gitattributes keeps out of the shipped package.
         composer config repositories.module path "$GITHUB_WORKSPACE/module"
-        # drush is needed at ANALYSIS time, not just runtime: without it PHPStan
-        # reads src/Drush/Commands as "extends unknown class" and "attribute class
-        # Drush\Attributes\Command does not exist" — the analyser is not wrong, it
-        # is under-equipped. Same failure mode as core-dev missing.
         composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
           --no-interaction --no-progress
-        # core-dev brings PHPUnit. Without it PHPStan analyses tests/ and reports
-        # every assertion as an undefined method — noise that buries real findings.
-        # Pinned to the core major for the same reason tests.yml pins it: left
-        # unconstrained, composer backtracks to the Drupal 8-era 8.0.0-beta15.
         composer require --dev "drupal/core-dev:^11" -W \
           --no-interaction --no-progress
         composer require --dev drupal/coder mglaman/phpstan-drupal \
@@ -192,18 +190,18 @@ jobs:
     # SARIF report in the same run. So we run it again with the github format to get
     # inline PR annotations. PHPStan caches, so this costs about a second — and
     # without it the findings live only in the job log.
+    # Runs twice on purpose: github format for inline PR annotations, table format
+    # for something a human can read in the summary. PHPStan caches, so it is fast.
     - name: Report PHPStan findings
       if: steps.phpstan.outputs.found == 'true'
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
         echo "## PHPStan found issues" >> "$GITHUB_STEP_SUMMARY"
-        # github format = inline annotations on the PR diff.
         ./vendor/bin/phpstan analyse \
           --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
           --error-format=github \
           --memory-limit=512M \
           --no-progress || true
-        # table format = something a human can read in the summary.
         ./vendor/bin/phpstan analyse \
           --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
           --error-format=table \
