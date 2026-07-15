@@ -138,11 +138,20 @@ jobs:
     # not install. A path only loads ours; it still finds the submodule's kernel
     # tests, since PHPUnit recurses.
     #
-    # browser_output must exist or PHPUnit warns about it not being writable.
+    # Kernel tests need a real database. Core's config reads SIMPLETEST_DB from the
+    # environment — that is what our deleted phpunit.xml.dist used to declare, and
+    # without it every kernel test errors with "There is no database connection so
+    # no tests can be run". SQLite is enough and needs no service container.
+    #
+    # BROWSERTEST_OUTPUT_DIRECTORY silences a warning about an unwritable HTML
+    # output dir; nothing here is a browser test, but core checks for it anyway.
     - name: Run PHPUnit
       working-directory: ${{ env.DRUPAL_DIR }}
+      env:
+        SIMPLETEST_DB: sqlite://localhost/sites/default/files/.phpunit.sqlite
+        BROWSERTEST_OUTPUT_DIRECTORY: /tmp/drupal/web/sites/simpletest/browser_output
       run: |
-        mkdir -p web/sites/simpletest/browser_output
+        mkdir -p web/sites/simpletest/browser_output web/sites/default/files
         ./vendor/bin/phpunit \
           -c web/core \
           --log-junit "$GITHUB_WORKSPACE/junit.xml" \
