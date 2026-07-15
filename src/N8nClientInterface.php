@@ -1,0 +1,73 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\n8n;
+
+/**
+ * Reads the n8n connection and talks to its REST API.
+ *
+ * Exists so consumers depend on the contract rather than the class — the AI
+ * provider, the drush commands and a future webform handler all type-hint this.
+ *
+ * @see \Drupal\n8n\N8nClient
+ * @see https://docs.n8n.io/api/
+ */
+interface N8nClientInterface {
+
+  /**
+   * Whether an admin has set both a base URL and a key.
+   *
+   * A configuration check, not a reachability one — callers on a request path
+   * want this, because only testConnection() should touch the network.
+   */
+  public function isConfigured(): bool;
+
+  /**
+   * The configured base URL, without a trailing slash.
+   */
+  public function getBaseUrl(): string;
+
+  /**
+   * Resolves the n8n API key through the Key module.
+   *
+   * Empty rather than throwing when the key is missing or its entity was
+   * deleted; callers decide whether that is fatal.
+   */
+  public function getApiKey(): string;
+
+  /**
+   * Whether a Key entity with this machine name exists.
+   */
+  public function keyExists(string $key_id): bool;
+
+  /**
+   * Verifies the URL and key against a live n8n.
+   *
+   * @return array
+   *   'status' is 'ok' or 'error'; 'message' is translatable and safe to show a
+   *   user.
+   *
+   * @see \Drupal\n8n\Form\N8nSettingsForm::testConnection()
+   */
+  public function testConnection(): array;
+
+  /**
+   * Issues a request against the n8n public API.
+   *
+   * @param string $method
+   *   The HTTP method.
+   * @param string $path
+   *   A path under the base URL, starting with a slash.
+   * @param array $query
+   *   Query parameters.
+   *
+   * @return array
+   *   The decoded JSON body, or an empty array if it was not JSON.
+   *
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   *   When the request fails. Callers decide how loud that should be.
+   */
+  public function request(string $method, string $path, array $query = []): array;
+
+}

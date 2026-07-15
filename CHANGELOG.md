@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing has shipped yet. The module installs and registers itself with Drupal's AI
-module, but no agent is behind it — `chat` returns a placeholder. See
-`saga/Chapter_1_Packing_the_Van.md` Phase 2 for what comes next.
+Nothing has shipped yet. The connection is real — install it, set a URL and a key,
+and Test connection works — but no agent is behind it: `chat` returns a
+placeholder. Chatting, model discovery and the session bridge are specified in
+`features/` and arrive in Chapter 2. See `saga/Chapter_1_Packing_the_Van.md`.
 
 ### Added
 
@@ -43,6 +44,9 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 - A Copilot setup workflow, so the coding agent gets a working Drupal to reason against.
 - Saga: domain-aware configuration is now in scope, and how domain overrides actually behave is recorded.
 - CI steps declare where they run instead of hiding it in a `cd`.
+- Docs each own one thing and link to whoever owns the rest, section by section.
+- Messages shown to admins are now translatable, and n8n's failures have their own log channel.
+- Docs and examples no longer carry anyone's personal details or private workflow names.
 - The installed package no longer carries the test suite, the CI config or the saga — 71% smaller.
 - Tests run against the source using Drupal core's own PHPUnit config, the way drupal.org runs contrib.
 - The README says plainly which parts are built and which are still specification.

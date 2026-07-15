@@ -12,8 +12,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Configures the connection to an n8n instance.
  *
- * Deliberately small: a URL, a Key entity, a timeout. Everything else about n8n —
- * which agent answers, what it knows, what it can do — is configured in n8n.
+ * Deliberately small: a URL, a Key entity, a timeout. Everything else about n8n
+ * is configured in n8n.
+ *
+ * @see README.md#who-owns-what
+ * @see features/admin-connection.feature
  */
 class N8nSettingsForm extends ConfigFormBase {
 
@@ -63,9 +66,9 @@ class N8nSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
-    // The key belongs to the Key module, not to us — we only ever store its
-    // machine name, so the secret can live in a file, an env var, or a secrets
-    // manager. This is why the raw key can never be echoed back here.
+    // We store only the Key entity's machine name, so the secret can live in a
+    // file, an env var or a secrets manager — and can never be echoed back here.
+    // @see SECURITY.md#secrets-policy
     $form['api_key'] = [
       '#type' => 'key_select',
       '#title' => $this->t('n8n API key'),
@@ -96,7 +99,7 @@ class N8nSettingsForm extends ConfigFormBase {
       '#type' => 'submit',
       '#value' => $this->t('Test connection'),
       '#submit' => ['::testConnection'],
-      // Not a config save — skip validation of the required fields above.
+      // Not a config save, so do not validate the required fields above.
       '#limit_validation_errors' => [],
     ];
 

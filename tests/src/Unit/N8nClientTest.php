@@ -6,7 +6,6 @@ namespace Drupal\Tests\n8n\Unit;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\key\KeyInterface;
 use Drupal\key\KeyRepositoryInterface;
@@ -84,10 +83,14 @@ class N8nClientTest extends UnitTestCase {
     }
 
     $logger = $this->createMock(LoggerChannelInterface::class);
-    $logger_factory = $this->createMock(LoggerChannelFactoryInterface::class);
-    $logger_factory->method('get')->willReturn($logger);
 
-    return new N8nClient($http, $config_factory, $key_repository, $logger_factory);
+    return new N8nClient(
+      $http,
+      $config_factory,
+      $key_repository,
+      $logger,
+      $this->getStringTranslationStub(),
+    );
   }
 
   /**
@@ -194,7 +197,7 @@ class N8nClientTest extends UnitTestCase {
     $result = $client->testConnection();
 
     $this->assertSame('error', $result['status']);
-    $this->assertStringContainsString($expected, $result['message']);
+    $this->assertStringContainsString($expected, (string) $result['message']);
     $this->assertCount(0, $this->history, 'An unconfigured client must not make a request.');
   }
 
@@ -228,7 +231,7 @@ class N8nClientTest extends UnitTestCase {
     $result = $client->testConnection();
 
     $this->assertSame('error', $result['status']);
-    $this->assertStringContainsString($expected, $result['message']);
+    $this->assertStringContainsString($expected, (string) $result['message']);
   }
 
   /**
@@ -256,7 +259,7 @@ class N8nClientTest extends UnitTestCase {
     $result = $client->testConnection();
 
     $this->assertSame('error', $result['status']);
-    $this->assertStringContainsString('Could not reach n8n', $result['message']);
+    $this->assertStringContainsString('Could not reach n8n', (string) $result['message']);
   }
 
   /**

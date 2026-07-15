@@ -49,7 +49,7 @@ If you're unsure whether something counts, report it anyway and let us decide.
 | Fix or mitigation plan | depends on severity; we'll tell you the plan |
 | Credit | offered by default — tell us if you'd rather not be named |
 
-This is a homelab-scale project maintained by volunteers. We'd rather promise
+This is a small project maintained by volunteers. We'd rather promise
 honestly than promise fast.
 
 ---
@@ -105,7 +105,7 @@ module, that's a vulnerability — please report it.
 link-local addresses. That is intended, and it is a documented trade-off.**
 
 The normal deployment has Drupal and n8n in the same cluster, so the base URL is
-something like `http://n8n.flow.svc.cluster.local` or `http://localhost:5678`.
+something like `http://n8n.internal:5678` or `http://localhost:5678`.
 Refusing private ranges would break the primary use case.
 
 The consequence, stated plainly: an administrator who can set the n8n base URL can

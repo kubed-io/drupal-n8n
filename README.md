@@ -21,7 +21,7 @@ Use your n8n AI agents as Drupal AI Assistants. Your agent — with its own mode
 
 ## How It Works
 
-This module registers n8n as an **AI Provider** in Drupal's [AI module](https://www.drupal.org/project/ai). Every n8n workflow that starts with a **Chat Trigger** shows up as a *model* — so picking your `Homelab Project Manager` agent in Drupal is the same gesture as picking `gpt-4o`.
+This module registers n8n as an **AI Provider** in Drupal's [AI module](https://www.drupal.org/project/ai). Every n8n workflow that starts with a **Chat Trigger** shows up as a *model* — so picking your `Support Triage` agent in Drupal is the same gesture as picking `gpt-4o`.
 
 ```
   Drupal                                              n8n
@@ -147,7 +147,7 @@ The `n8n_webform` submodule adds an **n8n** handler to [Webform](https://www.dru
 
 It extends Webform's own Remote Post handler rather than replacing it, so everything Webform already does — conditions, token replacement, error handling, response mapping back into the submission — works unchanged.
 
-📋 spec: [`features/webform-submit.feature`](features/webform-submit.feature) · 🛠 [`modules/n8n_webform/src/Plugin/WebformHandler/N8nRemotePostWebformHandler.php`](modules/n8n_webform/src/Plugin/WebformHandler/N8nRemotePostWebformHandler.php)
+📋 spec: [`features/webform-submit.feature`](features/webform-submit.feature) — **not built yet**; the spec is `@todo` until we answer whether stock Remote Post already does the job.
 
 ### Drupal answers back
 
@@ -281,10 +281,10 @@ drush n8n:models --all
 
 ```sh
 # Send one message to a workflow and print the reply — no assistant, no block, no browser
-drush n8n:chat ttCS4UYKg9Q2RSsy "what can you do?"
+drush n8n:chat <workflow-id> "what can you do?"
 
 # Reuse a session id to prove memory threads
-drush n8n:chat ttCS4UYKg9Q2RSsy "and what did I just ask?" --session=my-test-session
+drush n8n:chat <workflow-id> "and what did I just ask?" --session=my-test-session
 ```
 
 ---
