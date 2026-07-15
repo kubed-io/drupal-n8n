@@ -330,6 +330,13 @@ What the workflows look for:
   ```
   `${{ }}` is fine in `with:`, `if:`, `name:`, `env:` values — just not woven into `run:`.
 - **Prefer `env:` for static values too**, so each `run:` reads as its purpose.
+- **Never `cd` in a `run:` block — set `working-directory:` on the step.** The step
+  header should say where it runs; a `cd` buries that in the script and silently
+  changes what every following line means. Use `working-directory: ${{ env.DIR }}`
+  — an expression is fine there, it is only `run:` that must stay pure bash.
+  The one exception is a step that *creates* the directory: `working-directory`
+  cannot point at somewhere that does not exist yet, so split it — one step to
+  create, the next with `working-directory` to work in it.
 - **Invoke scripts with `bash path/to/x.sh`** rather than relying on the exec bit.
 - **Provision first, act second.** Group setup up front (checkouts, runtimes,
   installs, service bring-up), then a readiness gate, then the work. Avoid

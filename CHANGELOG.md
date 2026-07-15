@@ -42,4 +42,5 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 - Dependabot can now resolve the Drupal dependencies.
 - A Copilot setup workflow, so the coding agent gets a working Drupal to reason against.
 - Saga: domain-aware configuration is now in scope, and how domain overrides actually behave is recorded.
+- CI steps declare where they run instead of hiding it in a `cd`.
 - PHPStan reports through code scanning, so findings show up in the Security tab and as PR annotations.

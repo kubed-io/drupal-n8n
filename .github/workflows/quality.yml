@@ -56,14 +56,16 @@ jobs:
         coverage: none
         tools: composer:v2
 
-    # PHPCS and PHPStan both need Drupal on disk: the coder standard resolves
-    # against core, and phpstan-drupal boots the container to know what \Drupal::
-    # returns. So we build the same throwaway site tests.yml does.
-    - name: Build a throwaway Drupal
+    # working-directory cannot be used here: the directory does not exist until this
+    # step creates it. Everything after runs with working-directory instead of cd.
+    - name: Create a throwaway Drupal
       run: |
         composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
-        cd "$DRUPAL_DIR"
+
+    - name: Configure composer
+      working-directory: ${{ env.DRUPAL_DIR }}
+      run: |
         composer config --no-plugins allow-plugins.composer/installers true
         composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
         composer config --no-plugins allow-plugins.drupal/core-project-message true
@@ -99,8 +101,8 @@ jobs:
     # built has a real lock covering our dependencies, and that is the tree an
     # operator actually installs.
     - name: Audit composer dependencies
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         echo "## composer audit" >> "$GITHUB_STEP_SUMMARY"
         if composer audit --format=plain --locked | tee audit.txt; then
           echo "✅ No advisories" >> "$GITHUB_STEP_SUMMARY"
@@ -121,8 +123,8 @@ jobs:
     # not a licence: wrap new comments at 80. See phpcs.xml.dist.
     - name: Coding standard (Drupal + DrupalPractice)
       id: phpcs
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         if ./vendor/bin/phpcs \
           --standard="web/modules/contrib/$MODULE/phpcs.xml.dist" \
           --report=full \
@@ -141,8 +143,8 @@ jobs:
     # the gate is the next step, which fails on real findings.
     - name: Static analysis (PHPStan)
       id: phpstan
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         ./vendor/bin/phpstan analyse \
           --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
           --error-format=sarif \
@@ -174,8 +176,8 @@ jobs:
     # without it the findings live only in the job log.
     - name: Report PHPStan findings
       if: steps.phpstan.outputs.found == 'true'
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         echo "## PHPStan found issues" >> "$GITHUB_STEP_SUMMARY"
         # github format = inline annotations on the PR diff.
         ./vendor/bin/phpstan analyse \

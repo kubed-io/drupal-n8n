@@ -47,11 +47,16 @@ jobs:
         coverage: none
         tools: composer:v2
 
-    - name: Build a Drupal with the module installed
+    # working-directory cannot be used here: the directory does not exist until this
+    # step creates it. Everything after runs with working-directory instead of cd.
+    - name: Create a throwaway Drupal
       run: |
         composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
-        cd "$DRUPAL_DIR"
+
+    - name: Configure composer
+      working-directory: ${{ env.DRUPAL_DIR }}
+      run: |
         composer config --no-plugins allow-plugins.composer/installers true
         composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
         composer config --no-plugins allow-plugins.drupal/core-project-message true
@@ -79,8 +84,8 @@ jobs:
       run: composer install --prefer-dist --no-progress
 
     - name: Verify the toolchain resolves
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         ./vendor/bin/phpunit --version
         ./vendor/bin/phpcs --version
         ./vendor/bin/phpstan --version
