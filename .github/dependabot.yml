@@ -1,0 +1,92 @@
+# Dependabot version updates. Security updates are toggled in repo settings, not
+# in this file — both are on.
+#
+# House rules, same as the sibling nextcloud-n8n:
+# - Weekly cadence: current without spamming the queue.
+# - Grouped minor + patch per ecosystem so dev deps don't fan out into one PR per
+#   package. Majors stay separate for deliberate review.
+# - Short cooldown so yanked releases get pulled before they reach us.
+# - Commit prefix is distinct per ecosystem so the log reads cleanly.
+#
+# No npm entry, deliberately: this module ships zero JavaScript. The chat UI is
+# ai_chatbot's. If an npm block ever appears here, something has gone wrong with
+# the thesis rather than with the config.
+#
+# Docs: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+updates:
+
+# GitHub Actions: keeps every `uses:` pin current. This is the durable fix for the
+# stale action majors an LLM will happily ship — see CONTRIBUTING.md.
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+  open-pull-requests-limit: 5
+  labels:
+  - dependencies
+  - github-actions
+  commit-message:
+    prefix: ci(deps)
+  cooldown:
+    default-days: 3
+    semver-minor-days: 7
+    semver-patch-days: 3
+  groups:
+    actions-minor-patch:
+      update-types:
+      - minor
+      - patch
+
+# Composer, module root: drupal/key at runtime, plus the dev toolchain
+# (coder, phpstan-drupal, the SARIF formatter, core-dev).
+- package-ecosystem: composer
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+  open-pull-requests-limit: 5
+  labels:
+  - dependencies
+  - php
+  commit-message:
+    prefix: deps(php)
+    prefix-development: deps-dev(php)
+  cooldown:
+    default-days: 3
+    semver-major-days: 14
+    semver-minor-days: 7
+    semver-patch-days: 3
+  groups:
+    composer-minor-patch:
+      update-types:
+      - minor
+      - patch
+
+# Composer, integration suite: Behat and Guzzle live in their own composer.json,
+# isolated so the test toolchain never constrains what a Drupal site installs.
+# Dependabot needs the directory named explicitly or it will not see them.
+- package-ecosystem: composer
+  directory: /tests/integration
+  schedule:
+    interval: weekly
+    day: monday
+  open-pull-requests-limit: 5
+  labels:
+  - dependencies
+  - php
+  - tests
+  commit-message:
+    prefix: deps(behat)
+    prefix-development: deps-dev(behat)
+  cooldown:
+    default-days: 3
+    semver-major-days: 14
+    semver-minor-days: 7
+    semver-patch-days: 3
+  groups:
+    behat-minor-patch:
+      update-types:
+      - minor
+      - patch
