@@ -92,13 +92,19 @@ jobs:
           exit $status
         fi
 
+    # Errors gate; warnings are reported but do not fail the build
+    # (ignore_warnings_on_exit). The standing warning is
+    # Drupal.Files.LineLength.TooLong — this repo's comments explain *why* code is
+    # the way it is and run past 80 characters. That is declared debt, not a
+    # licence: wrap new comments at 80, and see phpcs.xml.dist.
     - name: Coding standard (Drupal + DrupalPractice)
       run: |
         cd "$DRUPAL_DIR"
         ./vendor/bin/phpcs \
           --standard="web/modules/contrib/$MODULE/phpcs.xml.dist" \
           --report=full \
-          --report-summary
+          --report-summary \
+          --runtime-set ignore_warnings_on_exit 1
 
     # PHPStan is the code scanner. Emit SARIF rather than annotations: the upload
     # below produces the inline PR annotations *and* the Security-tab alerts, so

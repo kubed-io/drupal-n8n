@@ -95,7 +95,23 @@ jobs:
         composer config repositories.module path "$GITHUB_WORKSPACE/module"
         composer require "drupal/$MODULE:*" drupal/ai drupal/key \
           --no-interaction --no-progress
-        composer require drupal/core-dev --dev --no-interaction --no-progress
+        # PIN core-dev to the core major. Unconstrained, composer silently
+        # backtracks to drupal/core-dev 8.0.0-beta15 — a Drupal 8-era metapackage
+        # with no dependencies — and you get a green install with no phpunit and a
+        # baffling "./vendor/bin/phpunit: No such file or directory".
+        composer require --dev "drupal/core-dev:^11" -W \
+          --no-interaction --no-progress
+
+    # Fail here, loudly, rather than 20 lines later with exit 127.
+    - name: Verify the test harness installed
+      run: |
+        cd "$DRUPAL_DIR"
+        if [ ! -x ./vendor/bin/phpunit ]; then
+          echo "::error::phpunit was not installed — check the drupal/core-dev constraint"
+          composer show drupal/core-dev || true
+          exit 1
+        fi
+        ./vendor/bin/phpunit --version
 
     # ── Act: everything is provisioned; now run the suite ────────────────────
     - name: Run PHPUnit

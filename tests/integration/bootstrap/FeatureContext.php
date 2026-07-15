@@ -25,6 +25,8 @@ class FeatureContext implements Context {
   use N8nApiTrait;
 
   /**
+   * Asserts the module under test is enabled on the site.
+   *
    * @Given the n8n module is installed and enabled
    */
   public function theModuleIsInstalledAndEnabled(): void {
@@ -38,6 +40,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Asserts Drupal itself is up, before we blame the module.
+   *
    * @Then drush reports the site is bootstrapped
    */
   public function drushReportsTheSiteIsBootstrapped(): void {
@@ -52,6 +56,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Asserts the ephemeral n8n container came up.
+   *
    * @Then n8n reports that it is healthy
    */
   public function n8nReportsThatItIsHealthy(): void {
