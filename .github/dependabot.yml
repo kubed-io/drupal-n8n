@@ -8,6 +8,10 @@
 # - Short cooldown so yanked releases get pulled before they reach us.
 # - Commit prefix is distinct per ecosystem so the log reads cleanly.
 #
+# assignees is set per-block because .github/assign.yml uses `addAssignees: author`,
+# and the author of a Dependabot PR is a bot — GitHub will not assign it, so those
+# PRs arrive unowned. Naming a human here is the only way they get one.
+#
 # No npm entry, deliberately: this module ships zero JavaScript. The chat UI is
 # ai_chatbot's. If an npm block ever appears here, something has gone wrong with
 # the thesis rather than with the config.
@@ -24,6 +28,8 @@ updates:
     interval: weekly
     day: monday
   open-pull-requests-limit: 5
+  assignees:
+  - kferrone
   labels:
   - dependencies
   - github-actions
@@ -53,6 +59,8 @@ updates:
     interval: weekly
     day: monday
   open-pull-requests-limit: 5
+  assignees:
+  - kferrone
   labels:
   - dependencies
   - php
@@ -80,6 +88,8 @@ updates:
     interval: weekly
     day: monday
   open-pull-requests-limit: 5
+  assignees:
+  - kferrone
   labels:
   - dependencies
   - php

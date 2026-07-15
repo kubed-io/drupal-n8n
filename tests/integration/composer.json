@@ -1,11 +1,11 @@
 {
   "name": "kubed-io/drupal-n8n-integration",
-  "description": "Integration tests (Behat) for the n8n Drupal module. Isolated from the module's root composer so Behat's dependencies never constrain the module itself, and so a Drupal site can require the module without dragging Behat in. phpunit is here only for PHPUnit\\Framework\\Assert, which the step definitions assert with — Behat ships no assertion library of its own.",
+  "description": "Integration tests (Behat) for the n8n Drupal module. Isolated from the module's root composer so Behat's dependencies never constrain the module itself, and so a Drupal site can require the module without dragging Behat in. phpunit is here only for PHPUnit\\Framework\\Assert, which the step definitions assert with \u2014 Behat ships no assertion library of its own. The constraint spans 11-13 deliberately: phpunit 13 needs PHP >=8.4.1 but this module supports >=8.3, so a fixed ^13 would lock out contributors on our own stated floor. Composer resolves the newest phpunit each PHP can run, and Assert is stable across all three.",
   "license": "GPL-2.0-or-later",
   "require-dev": {
     "behat/behat": "^3.32",
     "guzzlehttp/guzzle": "^7.9",
-    "phpunit/phpunit": "^11.5"
+    "phpunit/phpunit": "^11.5 || ^12 || ^13"
   },
   "config": {
     "sort-packages": true
