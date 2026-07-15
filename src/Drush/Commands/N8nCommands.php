@@ -109,12 +109,15 @@ class N8nCommands extends DrushCommands {
   public function test(): int {
     $result = $this->client->testConnection();
 
+    // Drush's logger is typed for string, and testConnection() hands back
+    // TranslatableMarkup so the form can render it — cast, or drush fatals on
+    // its way to reporting a connection that actually worked.
     if ($result['status'] === 'ok') {
-      $this->logger()->success($result['message']);
+      $this->logger()->success((string) $result['message']);
       return self::EXIT_SUCCESS;
     }
 
-    $this->logger()->error($result['message']);
+    $this->logger()->error((string) $result['message']);
     return self::EXIT_FAILURE;
   }
 

@@ -9,7 +9,7 @@
 #
 # ⚠️  READ THIS BEFORE USING `enable` ON A SITE YOU CARE ABOUT
 #
-# The module lands in the pod's IMAGE filesystem (`web/modules/custom`), which is
+# The module lands in the pod's IMAGE filesystem (`web/modules/contrib`), which is
 # NOT a volume — verified: zero mounts under that path. But `drush en` writes to
 # `core.extension` in the DATABASE, which very much persists.
 #
@@ -42,8 +42,11 @@ set -euo pipefail
 NS=${NS:-cloud}
 SELECTOR=${SELECTOR:-app.kubernetes.io/name=drupal}
 CONTAINER=${CONTAINER:-php}
-# Where Drupal looks for non-contrib modules inside the pod.
-DEST=${DEST:-/var/www/html/web/modules/custom/n8n}
+# Overwrite the COMPOSER-INSTALLED copy, because that is the one Drupal loads.
+# Once a site pins a released version, `composer require drupal/n8n` puts the
+# module in modules/contrib — and a second copy under modules/custom is simply
+# ignored, so pushing there looks like it worked and changes nothing.
+DEST=${DEST:-/var/www/html/web/modules/contrib/n8n}
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 pod() {

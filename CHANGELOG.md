@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `drush n8n:test` no longer fails with a TypeError while reporting a connection that actually worked — which broke unattended installs on 0.0.2.
+
+### Changed
+
+- The drush commands are unit tested at last: CI had no drush, so nothing under `Drush/` could be covered.
+- `dev.sh` now updates the copy Drupal loads; on a site pinning a release, pushing to `modules/custom` changed nothing.
+
 ## [0.0.2] - 2026-07-15
 
 Nothing has shipped yet. The connection is real — install it, set a URL and a key,
