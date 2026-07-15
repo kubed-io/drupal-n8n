@@ -13,6 +13,7 @@ use Drupal\key\KeyRepositoryInterface;
 use Drupal\n8n\N8nClient;
 use Drupal\Tests\UnitTestCase;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -115,7 +116,7 @@ class N8nClientTest extends UnitTestCase {
    * @covers ::getApiKey
    * @covers ::keyExists
    */
-  public function testAMissingKeyIsEmptyRatherThanFatal(): void {
+  public function testMissingKeyIsEmptyRatherThanFatal(): void {
     $client = $this->buildClient([], [], NULL);
     $this->assertSame('', $client->getApiKey());
     $this->assertFalse($client->keyExists('gone'));
@@ -150,7 +151,7 @@ class N8nClientTest extends UnitTestCase {
    *
    * @covers ::testConnection
    */
-  public function testASuccessfulConnectionReportsOk(): void {
+  public function testSuccessfulConnectionReportsOk(): void {
     $client = $this->buildClient([
       new Response(200, [], json_encode(['data' => []])),
     ]);
@@ -187,7 +188,7 @@ class N8nClientTest extends UnitTestCase {
    *
    * @dataProvider unconfiguredCases
    */
-  public function testAnUnconfiguredConnectionFailsWithoutCallingOut(array $settings, ?string $key_value, string $expected): void {
+  public function testUnconfiguredConnectionFailsWithoutCallingOut(array $settings, ?string $key_value, string $expected): void {
     $client = $this->buildClient([], $settings, $key_value);
 
     $result = $client->testConnection();
@@ -208,7 +209,7 @@ class N8nClientTest extends UnitTestCase {
   }
 
   /**
-   * n8n's failures become sentences an admin can act on.
+   * Failures from n8n become sentences an admin can act on.
    *
    * @covers ::testConnection
    * @covers ::friendlyError
@@ -217,7 +218,7 @@ class N8nClientTest extends UnitTestCase {
    */
   public function testFailuresBecomeFriendlyMessages(int $status, string $expected): void {
     $client = $this->buildClient([
-      new \GuzzleHttp\Exception\ClientException(
+      new ClientException(
         'n8n said no',
         new Request('GET', 'https://n8n.example.com/api/v1/workflows'),
         new Response($status),
@@ -247,7 +248,7 @@ class N8nClientTest extends UnitTestCase {
    *
    * @covers ::testConnection
    */
-  public function testAnUnreachableHostIsReportedAsUnreachable(): void {
+  public function testUnreachableHostIsReportedAsUnreachable(): void {
     $client = $this->buildClient([
       new ConnectException('Connection refused', new Request('GET', 'https://n8n.example.com')),
     ]);
@@ -278,7 +279,7 @@ class N8nClientTest extends UnitTestCase {
    *
    * @covers ::request
    */
-  public function testANonJsonBodyDoesNotCrash(): void {
+  public function testNonJsonBodyDoesNotCrash(): void {
     $client = $this->buildClient([new Response(200, [], '<html>not json</html>')]);
     $this->assertSame([], $client->request('GET', '/api/v1/workflows'));
   }
