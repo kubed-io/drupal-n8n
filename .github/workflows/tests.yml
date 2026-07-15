@@ -105,11 +105,16 @@ jobs:
     # backtracks to drupal/core-dev 8.0.0-beta15 — a Drupal 8-era metapackage with
     # no dependencies — and the install goes green with no phpunit, failing later
     # with a baffling "./vendor/bin/phpunit: No such file or directory".
+    #
+    # drush is a TEST-time dependency, not just a runtime one: N8nCommands extends
+    # DrushCommands, so without it the drush commands cannot be unit tested at all.
+    # They were untestable here until v0.1.0, and a TypeError shipped in v0.0.2 as
+    # a result.
     - name: Require the module from the working tree
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
         composer config repositories.module path "$GITHUB_WORKSPACE/module"
-        composer require "drupal/$MODULE:*" drupal/ai drupal/key \
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
           --no-interaction --no-progress
         composer require --dev "drupal/core-dev:^11" -W \
           --no-interaction --no-progress
