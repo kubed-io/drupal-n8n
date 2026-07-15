@@ -123,7 +123,7 @@ class N8nClientTest extends UnitTestCase {
   }
 
   /**
-   * "Configured" means an admin set it up — not that n8n is up.
+   * Being configured means an admin set it up, not that n8n is up.
    *
    * @covers ::isConfigured
    *

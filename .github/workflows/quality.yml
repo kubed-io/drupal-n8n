@@ -106,19 +106,30 @@ jobs:
           exit $status
         fi
 
-    # Errors gate; warnings are reported but do not fail the build
-    # (ignore_warnings_on_exit). The standing warning is
-    # Drupal.Files.LineLength.TooLong — this repo's comments explain *why* code is
-    # the way it is and run past 80 characters. That is declared debt, not a
-    # licence: wrap new comments at 80, and see phpcs.xml.dist.
+    # NOTE: this step records its result instead of failing, so PHPStan still runs
+    # and still reports. Letting phpcs stop the job meant one gate's failure hid
+    # the other's findings — you fixed phpcs, re-ran, and only then learned what
+    # PHPStan thought. Both gates report every run; "Gate" at the end fails the job.
+    #
+    # Errors gate; warnings are reported but do not fail (ignore_warnings_on_exit).
+    # The standing warning is Drupal.Files.LineLength.TooLong — this repo's comments
+    # explain *why* code is the way it is and run past 80 characters. Declared debt,
+    # not a licence: wrap new comments at 80. See phpcs.xml.dist.
     - name: Coding standard (Drupal + DrupalPractice)
+      id: phpcs
       run: |
         cd "$DRUPAL_DIR"
-        ./vendor/bin/phpcs \
+        if ./vendor/bin/phpcs \
           --standard="web/modules/contrib/$MODULE/phpcs.xml.dist" \
           --report=full \
           --report-summary \
-          --runtime-set ignore_warnings_on_exit 1
+          --runtime-set ignore_warnings_on_exit 1; then
+          echo "✅ Coding standard clean" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+          echo "## Coding standard found errors" >> "$GITHUB_STEP_SUMMARY"
+          echo "See the step log above." >> "$GITHUB_STEP_SUMMARY"
+        fi
 
     # PHPStan is the code scanner. Emit SARIF rather than annotations: the upload
     # below produces the inline PR annotations *and* the Security-tab alerts, so
@@ -149,7 +160,10 @@ jobs:
     # SARIF is machine-readable, which means a failing run says nothing useful in
     # the log. Re-run with a human format so the findings are right here — PHPStan
     # caches, so this costs a second — then fail.
-    - name: Fail on PHPStan findings
+    # SARIF is machine-readable, so a failing run says nothing useful in the log.
+    # Re-run with a human format to put the findings in the summary. PHPStan caches,
+    # so this costs a second.
+    - name: Report PHPStan findings
       if: steps.phpstan.outputs.found == 'true'
       run: |
         cd "$DRUPAL_DIR"
@@ -161,4 +175,15 @@ jobs:
           --no-progress | tee /tmp/phpstan.txt || true
         { echo '```'; tail -60 /tmp/phpstan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         echo "Also in Security → Code scanning, and inline on the PR." >> "$GITHUB_STEP_SUMMARY"
+
+    # The only step that fails the job. By here every gate has run and reported, so
+    # one run tells you everything that is wrong rather than the first thing.
+    - name: Gate
+      if: steps.phpcs.outputs.failed == 'true' || steps.phpstan.outputs.found == 'true'
+      env:
+        PHPCS_FAILED: ${{ steps.phpcs.outputs.failed }}
+        PHPSTAN_FOUND: ${{ steps.phpstan.outputs.found }}
+      run: |
+        [ "$PHPCS_FAILED" = "true" ] && echo "::error::Coding standard found errors"
+        [ "$PHPSTAN_FOUND" = "true" ] && echo "::error::PHPStan found issues"
         exit 1
