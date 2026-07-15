@@ -27,6 +27,7 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 
 - An `n8n` provider for Drupal's AI module: your n8n agents will be selectable as models for an AI Assistant, and are deliberately never offered where a raw model is required.
 - An n8n connection shared by every n8n submodule — base URL plus an API key held by the Key module, with a Test connection button, at Configuration → Web services → n8n.
+- `drush n8n:set-url`, `n8n:set-key` and `n8n:test`, so a deployment can bake and verify the connection with nobody at a form.
 - The executable specification: 27 Gherkin scenarios across eight `.feature` files, plus LLM-free fixture workflows the tests own.
 - A README describing the product as users will meet it — the assistant-vs-agent model, who owns what, the chat block, admin settings, and the drush commands.
 - Contribution rules: `CONTRIBUTING.md`, `AGENTS.md`, `SECURITY.md`, and GPL-2.0-or-later licensing.
