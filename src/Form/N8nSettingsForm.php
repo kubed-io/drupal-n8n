@@ -17,7 +17,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class N8nSettingsForm extends ConfigFormBase {
 
-  public const CONFIG_NAME = 'n8n.settings';
+  // The client owns the config name; referencing it here keeps the form, the
+  // client and the drush commands on the same object by construction.
+  public const CONFIG_NAME = N8nClient::CONFIG_NAME;
 
   /**
    * The n8n client.

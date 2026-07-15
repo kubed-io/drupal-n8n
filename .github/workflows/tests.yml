@@ -72,11 +72,16 @@ jobs:
         coverage: none
         tools: composer:v2
 
-    - name: Build a throwaway Drupal
+    # working-directory cannot be used here: the directory does not exist until this
+    # step creates it. Everything after runs with working-directory instead of cd.
+    - name: Create a throwaway Drupal
       run: |
         composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
-        cd "$DRUPAL_DIR"
+
+    - name: Configure composer
+      working-directory: ${{ env.DRUPAL_DIR }}
+      run: |
         composer config --no-plugins allow-plugins.composer/installers true
         composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
         composer config --no-plugins allow-plugins.drupal/core-project-message true
@@ -88,8 +93,8 @@ jobs:
     # The module under test is wired in as a path repo, so composer installs the
     # working tree rather than a published release.
     - name: Require the module from the working tree
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         # symlink:false so the module is COPIED to web/modules/contrib/n8n.
         # With a symlink, relative paths in phpunit.xml.dist resolve against
         # the working tree and cannot find core.
@@ -105,8 +110,8 @@ jobs:
 
     # Fail here, loudly, rather than 20 lines later with exit 127.
     - name: Verify the test harness installed
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         if [ ! -x ./vendor/bin/phpunit ]; then
           echo "::error::phpunit was not installed — check the drupal/core-dev constraint"
           composer show drupal/core-dev || true
@@ -116,8 +121,8 @@ jobs:
 
     # ── Act: everything is provisioned; now run the suite ────────────────────
     - name: Run PHPUnit
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         ./vendor/bin/phpunit \
           -c "web/modules/contrib/$MODULE/phpunit.xml.dist" \
           --log-junit "$GITHUB_WORKSPACE/junit.xml" \

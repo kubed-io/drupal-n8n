@@ -23,6 +23,14 @@ use GuzzleHttp\Exception\GuzzleException;
 class N8nClient {
 
   /**
+   * The config object holding the connection.
+   *
+   * Named here rather than inline so the settings form, the drush commands and
+   * this client cannot drift onto different config objects.
+   */
+  public const CONFIG_NAME = 'n8n.settings';
+
+  /**
    * Constructs the client.
    */
   public function __construct(
@@ -64,6 +72,16 @@ class N8nClient {
     }
     $key = $this->keyRepository->getKey($key_id);
     return $key ? (string) $key->getKeyValue() : '';
+  }
+
+  /**
+   * Whether a Key entity with this machine name exists.
+   *
+   * Lets a caller refuse a dangling reference at the moment it is set, rather
+   * than discovering it later when someone tries to chat.
+   */
+  public function keyExists(string $key_id): bool {
+    return $this->keyRepository->getKey($key_id) !== NULL;
   }
 
   /**
@@ -153,7 +171,7 @@ class N8nClient {
    * The module's settings.
    */
   protected function getConfig() {
-    return $this->configFactory->get('n8n.settings');
+    return $this->configFactory->get(self::CONFIG_NAME);
   }
 
 }

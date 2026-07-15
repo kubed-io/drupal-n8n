@@ -56,14 +56,16 @@ jobs:
         coverage: none
         tools: composer:v2
 
-    # PHPCS and PHPStan both need Drupal on disk: the coder standard resolves
-    # against core, and phpstan-drupal boots the container to know what \Drupal::
-    # returns. So we build the same throwaway site tests.yml does.
-    - name: Build a throwaway Drupal
+    # working-directory cannot be used here: the directory does not exist until this
+    # step creates it. Everything after runs with working-directory instead of cd.
+    - name: Create a throwaway Drupal
       run: |
         composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
-        cd "$DRUPAL_DIR"
+
+    - name: Configure composer
+      working-directory: ${{ env.DRUPAL_DIR }}
+      run: |
         composer config --no-plugins allow-plugins.composer/installers true
         composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
         composer config --no-plugins allow-plugins.drupal/core-project-message true
@@ -75,7 +77,11 @@ jobs:
         # With a symlink, relative paths in phpunit.xml.dist resolve against
         # the working tree and cannot find core.
         composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
-        composer require "drupal/$MODULE:*" drupal/ai drupal/key \
+        # drush is needed at ANALYSIS time, not just runtime: without it PHPStan
+        # reads src/Drush/Commands as "extends unknown class" and "attribute class
+        # Drush\Attributes\Command does not exist" — the analyser is not wrong, it
+        # is under-equipped. Same failure mode as core-dev missing.
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
           --no-interaction --no-progress
         # core-dev brings PHPUnit. Without it PHPStan analyses tests/ and reports
         # every assertion as an undefined method — noise that buries real findings.
@@ -95,8 +101,8 @@ jobs:
     # built has a real lock covering our dependencies, and that is the tree an
     # operator actually installs.
     - name: Audit composer dependencies
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         echo "## composer audit" >> "$GITHUB_STEP_SUMMARY"
         if composer audit --format=plain --locked | tee audit.txt; then
           echo "✅ No advisories" >> "$GITHUB_STEP_SUMMARY"
@@ -106,19 +112,30 @@ jobs:
           exit $status
         fi
 
-    # Errors gate; warnings are reported but do not fail the build
-    # (ignore_warnings_on_exit). The standing warning is
-    # Drupal.Files.LineLength.TooLong — this repo's comments explain *why* code is
-    # the way it is and run past 80 characters. That is declared debt, not a
-    # licence: wrap new comments at 80, and see phpcs.xml.dist.
+    # NOTE: this step records its result instead of failing, so PHPStan still runs
+    # and still reports. Letting phpcs stop the job meant one gate's failure hid
+    # the other's findings — you fixed phpcs, re-ran, and only then learned what
+    # PHPStan thought. Both gates report every run; "Gate" at the end fails the job.
+    #
+    # Errors gate; warnings are reported but do not fail (ignore_warnings_on_exit).
+    # The standing warning is Drupal.Files.LineLength.TooLong — this repo's comments
+    # explain *why* code is the way it is and run past 80 characters. Declared debt,
+    # not a licence: wrap new comments at 80. See phpcs.xml.dist.
     - name: Coding standard (Drupal + DrupalPractice)
+      id: phpcs
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
-        ./vendor/bin/phpcs \
+        if ./vendor/bin/phpcs \
           --standard="web/modules/contrib/$MODULE/phpcs.xml.dist" \
           --report=full \
           --report-summary \
-          --runtime-set ignore_warnings_on_exit 1
+          --runtime-set ignore_warnings_on_exit 1; then
+          echo "✅ Coding standard clean" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+          echo "## Coding standard found errors" >> "$GITHUB_STEP_SUMMARY"
+          echo "See the step log above." >> "$GITHUB_STEP_SUMMARY"
+        fi
 
     # PHPStan is the code scanner. Emit SARIF rather than annotations: the upload
     # below produces the inline PR annotations *and* the Security-tab alerts, so
@@ -126,36 +143,65 @@ jobs:
     # the gate is the next step, which fails on real findings.
     - name: Static analysis (PHPStan)
       id: phpstan
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         ./vendor/bin/phpstan analyse \
           --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
           --error-format=sarif \
           --memory-limit=512M \
           --no-progress > "$GITHUB_WORKSPACE/phpstan.sarif" || echo "found=true" >> "$GITHUB_OUTPUT"
 
-    # Always upload, even when PHPStan found something — an empty Security tab on a
-    # failing run would be worse than useless.
+    # Upload even when PHPStan FOUND something — an empty Security tab on a failing
+    # run would be worse than useless. But not when PHPStan never RAN: an earlier
+    # step failing (phpcs exits 2 on errors, and bash -e stops the job) would
+    # otherwise add a second, misleading "Path does not exist: phpstan.sarif" error
+    # pointing at the scanner instead of at the real failure.
     - name: Upload PHPStan SARIF to code scanning
-      if: always()
+      if: always() && hashFiles('phpstan.sarif') != ''
       uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: phpstan.sarif
         category: phpstan
+        # We check out into module/, so without this the action reports "the
+        # checkout path provided does not appear to be a git repository" and cannot
+        # tie alerts to the PR's commit.
+        checkout_path: ${{ github.workspace }}/module
 
     # SARIF is machine-readable, which means a failing run says nothing useful in
     # the log. Re-run with a human format so the findings are right here — PHPStan
     # caches, so this costs a second — then fail.
-    - name: Fail on PHPStan findings
+    # PHPStan takes ONE --error-format, unlike Psalm which emits annotations and a
+    # SARIF report in the same run. So we run it again with the github format to get
+    # inline PR annotations. PHPStan caches, so this costs about a second — and
+    # without it the findings live only in the job log.
+    - name: Report PHPStan findings
       if: steps.phpstan.outputs.found == 'true'
+      working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        cd "$DRUPAL_DIR"
         echo "## PHPStan found issues" >> "$GITHUB_STEP_SUMMARY"
+        # github format = inline annotations on the PR diff.
+        ./vendor/bin/phpstan analyse \
+          --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
+          --error-format=github \
+          --memory-limit=512M \
+          --no-progress || true
+        # table format = something a human can read in the summary.
         ./vendor/bin/phpstan analyse \
           --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
           --error-format=table \
           --memory-limit=512M \
           --no-progress | tee /tmp/phpstan.txt || true
         { echo '```'; tail -60 /tmp/phpstan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-        echo "Also in Security → Code scanning, and inline on the PR." >> "$GITHUB_STEP_SUMMARY"
+        echo "Also in Security → Code scanning." >> "$GITHUB_STEP_SUMMARY"
+
+    # The only step that fails the job. By here every gate has run and reported, so
+    # one run tells you everything that is wrong rather than the first thing.
+    - name: Gate
+      if: steps.phpcs.outputs.failed == 'true' || steps.phpstan.outputs.found == 'true'
+      env:
+        PHPCS_FAILED: ${{ steps.phpcs.outputs.failed }}
+        PHPSTAN_FOUND: ${{ steps.phpstan.outputs.found }}
+      run: |
+        [ "$PHPCS_FAILED" = "true" ] && echo "::error::Coding standard found errors"
+        [ "$PHPSTAN_FOUND" = "true" ] && echo "::error::PHPStan found issues"
         exit 1

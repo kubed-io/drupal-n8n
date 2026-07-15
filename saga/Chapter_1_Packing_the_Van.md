@@ -11,6 +11,12 @@
 > This chapter is everything before we drive. **Not one sip of smoothie** — we
 > don't taste anything until Chapter 2. What we do here is get a van that starts,
 > that other people would climb into, and that knows where n8n lives.
+>
+> It is also the part where you keep running back inside. Everyone's in the van, and
+> then — *the phone charger.* Then — *did anyone lock the back door?* Each trip back
+> feels like a delay and is actually the reason the trip works. **Every edge case in
+> this chapter arrived that way**, and each one is a thing we'd have discovered at
+> two in the morning on a hard shoulder instead.
 
 ---
 
@@ -39,14 +45,19 @@ What is **done**:
   n8n, signed commits, required checks, Dependabot, a release workflow. All proven
   by watching each one fail and then pass.
 
-What is **left before this chapter closes** — see §8:
+What is **left** — see §8:
 
 > **The connection, end to end.** An admin sets a URL, picks a key, clicks **Test
 > connection**, and gets a real answer from a real n8n — with unit tests and the
-> `admin-connection` feature running live in the pipeline. That is the whole
-> remaining scope.
+> `admin-connection` feature running live in the pipeline. Then the same thing
+> **per domain**, because a domain wants its own API key against the same n8n.
 
 **No chat. No model discovery. No session bridge.** Those are Chapter 2.
+
+> **This chapter does not close on a checklist.** The scope grows as we find things —
+> domain-awareness (§8, Phase 4) did not exist as an idea until a stray button on the
+> settings form led to it. That is the process working, not scope creep. **Only Kelly
+> ends a chapter.**
 
 ---
 
@@ -678,34 +689,71 @@ to an agent yet. That is deliberate — see §8.5.
   the merge gate red, then removed it. An empty tab is now trustworthy. **Do this
   again whenever a gate's healthy state is indistinguishable from its broken one.**
 
-### Phase 3 — Knowing where n8n lives ☐ **THE REMAINING WORK**
-- **Goal:** the chapter's end state. An admin registers an n8n instance and proves
-  it works, from the UI and from the CLI. **This is the gate every other feature
-  depends on** — model discovery, chat, session, webform all begin with "given the
-  connection is configured and verified".
+### Phase 3 — Knowing where n8n lives ☐ **IN PROGRESS**
+- **Goal:** an admin registers an n8n instance and proves it works, from the UI and
+  from the CLI. **This is the gate every other feature depends on** — every scenario
+  in `features/` opens with "given the connection is configured and verified".
 - **Shape — deliberately the sibling's:** a URL, a token, a **Test connection**
-  button. `nextcloud-n8n` landed on that shape after real use; we are copying the
-  conclusion, not re-deriving it. This also sets the house style for every admin
-  screen that follows.
-- **Scope:**
-  - The settings form exists (`N8nSettingsForm`: URL + `key_select` + timeout +
-    Test connection) and `N8nClient::testConnection()` exists. **Neither is tested,
+  button. `nextcloud-n8n` landed on that shape after real use; we copy the
+  conclusion rather than re-derive it. It also sets the house style for every admin
+  screen after it.
+- **Scope — global only. Domain-awareness is Phase 4.**
+  - The settings form and `N8nClient::testConnection()` exist. **Neither is tested,
     and neither has been run against a real n8n.**
   - **Unit tests** for `N8nClient` with a mocked transport: URL normalisation, the
     `X-N8N-API-KEY` header, the friendly-error mapping for 401/403/404/timeout, and
     `isConfigured()`.
   - **Drush commands** — `n8n:set-url`, `n8n:set-key`, `n8n:test`. Not a
-    convenience: the cluster has to bake the connection with no human at a form, and
-    a non-zero exit is what lets an install script fail loudly.
+    convenience: the cluster bakes the connection with no human at a form, and a
+    non-zero exit is what lets an install script fail loudly.
   - **Wire `admin-connection.feature`** — drop its `@todo`, implement the steps
-    against the ephemeral n8n. It becomes the first live feature in the pipeline.
-- **Exit — all four:**
+    against the ephemeral n8n. The first live feature in the pipeline.
+- **Exit:**
   1. Unit tests green for the client's behaviour, including every error path.
   2. `admin-connection.feature` runs **live** in `integration.yml` — a real Test
      connection against a real n8n, and a real failure against a bad key.
   3. `drush n8n:test` exits 0 configured, non-zero broken.
   4. An admin does it by hand on the live pod and it works.
 - **Depends on:** P1, P2. **Decides:** the admin-screen house style.
+
+### Phase 4 — The same thing, per domain ☐ **FOUND MID-CHAPTER**
+- **How this got here:** Kelly asked what an "Enable/Remove domain configuration"
+  button on our settings form was. It is `domain_config_ui`, site-wide, nothing to do
+  with us — and pulling the thread found a real trap. **The scope of this chapter grew
+  because we looked.** That is the process working.
+- **The use case:** *a second domain wants its own API key against the same n8n
+  instance.* An override carrying only `api_key`, with `base_url` falling through to
+  global.
+- **Verified on the live pod (§9.1) — do not re-derive:**
+  - Overrides live in a config **collection** `domain.<id>`, not a config object.
+  - Write with `domain.config_factory_override` → `getOverrideEditable($id, $name)`;
+    read with `getOverride($id, $name)`; tear down with `->delete()`.
+  - **Overrides apply for free in a request** — `N8nClient` reads through
+    `configFactory`, so the Drupal way already paid for this.
+  - **`drush --uri` does NOT populate the domain context.** Overrides never apply in
+    CLI. Proven both ways.
+- **The trap this exists to close:** an admin enables domain config and sets a
+  domain-specific key; `drush n8n:test` reads **global**, connects to a **different**
+  n8n, and reports success. The cluster bakes a connection the site ignores, and
+  nothing says so.
+- **Scope:**
+  - `--domain=<id>` on the drush commands, reading/writing the collection directly —
+    because `--uri` cannot do it for us.
+  - `n8n:test` **warns when an override exists that it is not testing.** This is the
+    whole point of the phase.
+  - `domain` stays an **optional** dependency. `n8n.info.yml` must not require it;
+    `--domain` errors clearly when Domain is not installed.
+  - CI installs `domain` + `domain_config` and creates a second domain. The CI site
+    is the `standard` profile with no Domain, so this is real Behat setup, not a flag.
+  - New `@domain`-tagged scenarios in `admin-connection.feature`.
+- **Exit:**
+  1. A domain with an `api_key`-only override uses its own key against the same n8n.
+  2. A domain with no override falls back to global.
+  3. `drush n8n:test --domain=<id>` tests what that domain actually uses.
+  4. `drush n8n:test` **warns** when an untested override exists.
+  5. The `@domain` scenarios run live in the pipeline.
+- **Depends on:** P3 green first — deliberately. Get the base case tested and merged,
+  then add domain-awareness onto a green foundation.
 
 ### §8.5 — Why the POC moved out of this chapter
 
@@ -776,6 +824,37 @@ streaming (Fork E2), adopting `drupal.org/project/n8n` (§2.4).
 
 ---
 
+### 9.1 Domain config — verified on the live pod, do not re-derive
+
+Found by pulling on an "Enable/Remove domain configuration" button that turned out to
+be `domain_config_ui`, site-wide, nothing to do with us. What it led to:
+
+| Question | Answer | How we know |
+|---|---|---|
+| Where does an override live? | config **collection** `domain.<id>` — or `domain.<id>.language.<lang>` | read `DomainConfigCollectionUtils` |
+| Is it a config object named `domain.config.<id>.<name>`? | **No.** Writing that name creates something nothing reads. | a probe did exactly that and looked like a module bug |
+| Write API | `domain.config_factory_override` → `getOverrideEditable($id, $name)` | proven live |
+| Read API | `getOverride($id, $name)`; tear down `->delete()` | proven live |
+| Partial override? | **Yes** — an override with only `api_key` lets `base_url` fall through to global. This is the whole use case. | proven live |
+| Do overrides apply in a request? | **Yes, free.** `N8nClient` reads via `configFactory`. | the Drupal way paying out |
+| Do overrides apply in CLI? | **Never.** | proven |
+| Does `drush --uri` help? | **No** — `domainId: NULL` with and without it | proven both ways |
+| Which service gates it? | `domain.negotiation_context` — **not** `domain.negotiator` | reading `loadOverrides()` |
+
+That last row explains a probe that showed `active domain: bikes` and
+`overridden? false` at the same time: two different services, and only one of them
+gates config.
+
+**The consequence, and it is Phase 4's whole reason for existing:** because CLI never
+sees an override, `drush n8n:test` reads global config while the site uses the
+override. It connects to a different n8n and reports success. **Silent.**
+
+**A lesson worth more than the finding:** the first probe "proved" the module was
+broken. It had proved my guess was wrong. When a mechanism looks broken, check that
+you are driving it with its own API before believing it.
+
+---
+
 ## 10. Verdict: effort & maintenance
 
 Kelly's framing — *"you seem to think stuff like this is easy but it will
@@ -802,21 +881,31 @@ difficulty — it's scope creep dressed up as helpfulness.
 
 ---
 
-## 11. What "done" looks like for this chapter
+## 11. Where the work stands
 
-The bar moved once, deliberately (§8.5). This is the current one.
+**This is not a closure checklist.** A chapter ends when Kelly says it ends.
+
+We are at the door with our hand on the latch, and we keep going back inside. Phase 4
+is *"wait — does the spare key work?"* — it exists because Kelly pointed at a button
+nobody had looked at. There will be more, and each one will feel like a delay right up
+until the moment it would have been a breakdown at 2am on a hard shoulder with no
+signal.
+
+So: expect the list below to grow. **Finding things you forgot is what packing is.**
+Folding them in here, rather than deferring them to keep this chapter tidy, is the
+whole point.
+
+Standing, not closing:
 
 1. ✅ The README and the `.feature` files describe a product Kelly recognises.
-2. ✅ `n8n` is in the Assistant provider dropdown and **absent** from the agent one
-   — proven on the live cluster, next to the real openai provider.
+2. ✅ `n8n` is in the Assistant provider dropdown and **absent** from the agent one —
+   proven on the live cluster, next to the real openai provider.
 3. ✅ The repo is public, CI is green, and every gate has been proven by watching it
    fail and then pass.
 4. ✅ Nobody has written a line of JavaScript.
-5. ☐ **An admin registers an n8n instance — URL, key, Test connection — and it
-   works.** From the UI, from drush, and from `admin-connection.feature` running
-   live in the pipeline.
-
-When 5 lands, the van starts, has papers, and knows the address. **Then** we drive.
+5. ☐ **Phase 3** — an admin registers an n8n instance and it works: UI, drush, and
+   `admin-connection.feature` live in the pipeline.
+6. ☐ **Phase 4** — the same, per domain, with the drush/UI divergence made loud.
 
 ---
 

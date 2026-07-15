@@ -142,7 +142,11 @@ drush n8n:chat <id> "hi"    # smoke-test one agent
    into the nearest PR. No ceremony.
 6. **Verify action versions** with `gh api repos/<o>/<r>/releases/latest` before
    pinning a `uses:`. LLMs reach for stale majors.
-7. **No `${{ }}` inside `run:` bash** — bind to `env:`, read `$VAR`.
+7. **No `${{ }}` inside `run:` bash** — bind to `env:`, read `$VAR`. A `run:` block
+   is pure bash, always.
+8. **No `cd` in a `run:` block** — set `working-directory:` on the step, so the step
+   header says where it runs. `${{ }}` is fine *there*, just not in `run:`. Exception:
+   a step that creates the directory must split into create-then-work.
 
 ## Shape of a feature change
 
