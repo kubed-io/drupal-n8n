@@ -22,12 +22,15 @@
 
 ---
 
-## Where we are — 2026-07-15 (evening)
+## Where we ended — 2026-07-15 (night) · **CHAPTER CLOSED**
 
-> **The engine turned over.** On the live cluster, from the install Job:
+> **The van is packed, and Dr K says that's the chapter.**
+>
+> Not from a working copy pushed into a pod, but from a **released version** a
+> site asked for by name — `drupal/n8n:^0.1.0`, fetched as a curated zip, into an
+> image built from scratch, installed by a Job with nobody watching:
 >
 > ```
-> setup/n8n.php: Key 'n8n_api_key' already current.
 > + drush n8n:set-url 'http://n8n.internal:5678'
 >  [success] n8n base URL set to http://n8n.internal:5678
 > + drush n8n:set-key 'n8n_api_key'
@@ -35,11 +38,19 @@
 > + drush n8n:test
 >  [success] Connected to n8n.
 > setup/n8n.php: connected to n8n at http://n8n.internal:5678.
+>
+> drupal-install   Complete   1/1
+> drupal/n8n       v0.1.0
 > ```
 >
-> A real Drupal, a real 1Password-sourced read-only key, a real n8n. Test
-> connection is green in the UI. **We are not out of the driveway — but the van
-> starts, and it knows the address.**
+> A real Drupal, a real read-only key from a real vault, a real n8n, and an
+> install that **completed** rather than retried. Test connection is green in the
+> UI. Nobody has written a line of JavaScript. **Not one sip of smoothie.**
+>
+> **The diner at sunset.** We are not out of the county yet — we are parked
+> outside somewhere with good pie, the van running fine behind us, the map open
+> on the table. The smoothie man is still out past the county line. That drive is
+> Chapter 2.
 
 ---
 
@@ -716,7 +727,7 @@ to an agent yet. That is deliberate — see §8.5.
   the merge gate red, then removed it. An empty tab is now trustworthy. **Do this
   again whenever a gate's healthy state is indistinguishable from its broken one.**
 
-### Phase 3 — Knowing where n8n lives ◑ **THE CONNECTION WORKS; THE SPEC IS NOT WIRED**
+### Phase 3 — Knowing where n8n lives ✅ **DONE** *(shipped as v0.1.0)*
 - **Goal:** an admin registers an n8n instance and proves it works, from the UI and
   from the CLI. **The gate every other feature depends on** — every scenario in
   `features/` opens with "given the connection is configured and verified".
@@ -751,7 +762,77 @@ to an agent yet. That is deliberate — see §8.5.
   green with a connection nobody had ever exercised.
 - **Decides:** the admin-screen house style — now set.
 
-### Phase 4 — The same thing, per domain ☐ **FOUND MID-CHAPTER**
+#### The last three runs back inside
+
+The chapter ended the way it said it would. All three arrived within an hour of
+each other, on the night we thought we were done, and **not one of them was
+findable from a green pipeline** — they needed a real release, on a real cluster,
+installed by a machine that wasn't paying attention.
+
+**1. The road resurfaced under us.** Drupal published SA-CORE-2026-010/011/012 at
+about 20:00 UTC. Composer no longer *warns* about a vulnerable package — it
+**refuses to load one** — so every `composer require` in the image stopped
+resolving, and the error named whatever we happened to be requiring rather than
+core. A build that was green at 18:02 was red at 20:30 with the same commit.
+
+The trap underneath: the base image's tag scheme is `<drupal>-<php>-<image>`, and
+**the Drupal part is only ever major or minor**. There is no `11.4.4` tag and
+there cannot be. The patch level is baked in invisibly and only moves when the
+image maintainer rebuilds — daily, at 03:06 UTC. So every core security release
+opens a window, about seven hours here, where **every available tag ships a
+blocked core and no pin can avoid it**. The fix was to stop waiting: update core
+ourselves before requiring anything. The constraint already allowed it; only the
+lock was stale.
+
+*Why it matters here:* it is the one edge case that was never about us. The van
+was fine. The road changed.
+
+**2. `n8n:test` reported a working connection as a failure.** v0.0.2 — tagged,
+released, notes written, called polished — fataled on the live install:
+
+```
+TypeError: DrushLoggerManager::success(): Argument #1 ($message) must be of type
+string, Drupal\Core\StringTranslation\TranslatableMarkup given
+```
+
+Read the trace: **`success()` was reached.** The connection had already worked.
+n8n was there the whole time; the only broken thing was saying so. But drush exits
+non-zero, the Job believed it, and an install that was correct in every respect
+failed.
+
+It came from making admin messages translatable — right for the form, fatal for
+drush, which types its logger `string`. `set-url` and `set-key` survived because
+they pass `dt()`, which returns a string.
+
+And it shipped because **nothing under `src/Drush/` had a single test** — not from
+carelessness: `tests.yml` never installed drush, so `N8nCommands` couldn't be
+*constructed* in the unit suite. The commands were structurally untestable and
+nobody noticed, because absent tests are silent. The fix is one cast. The repair
+is drush in `tests.yml` and a test that mocks **`DrushLoggerManager`, not
+`LoggerInterface`** — PHPUnit keeps the mocked signature, so `string` is really
+enforced. A `LoggerInterface` mock would have accepted the bug and passed.
+
+*The same mistake as §9.1 and Phase 3's two failed deploys: guessing an API
+instead of reading it.* Third time this chapter. It very nearly happened a fourth
+time inside the test **for this bug** — a bare `TranslatableMarkup` reaches for
+`\Drupal::translation()` when cast, which no unit test has.
+
+**3. `dev.sh` had been writing to a room nobody was in.** Pinning a version made
+composer install the module to `modules/contrib/n8n`. `dev.sh` pushed to
+`modules/custom/n8n`. Drupal loads contrib:
+
+```
+extension.list.module → modules/contrib/n8n
+```
+
+The fast loop reported success and changed nothing. **Our own tooling was the last
+thing to learn we'd become a real package** — the cost of the thing we wanted.
+
+*Why these were cheap:* every one landed in a Job, against a real site, while the
+old pod kept serving. Nothing reached a visitor. That is Phase 3's verify step
+earning its place a second time.
+
+### Phase 4 — The same thing, per domain ☐ **CARRIED TO CHAPTER 2**
 - **How this got here:** Dr K asked what an "Enable/Remove domain configuration"
   button on our settings form was. It is `domain_config_ui`, site-wide, nothing to do
   with us — and pulling the thread found a real trap. **The scope of this chapter grew
@@ -814,6 +895,12 @@ Everything with a fork attached: model discovery (Fork A), the webhook URL (Fork
 **B1 unverified**), the session bridge, the thrown-away system prompt (Fork D), the
 `promptJsonDecoder` hazard (Fork F), and the **anonymous-session collision** in §9 —
 which `./dev.sh probe` can now answer in minutes.
+
+**Carried in from Chapter 1, written down rather than quietly dropped:**
+**Phase 4** (per-domain configuration, §9.1 — the trap is fully mapped, the code
+isn't written) and **`admin-connection.feature`'s `@todo`**, which wants an
+ephemeral n8n that Chapter 2 needs on day one regardless (§7.1). Neither was worth
+holding the door for; both are worth doing before the first sip.
 
 ### Later
 Webform (§8's old Phase 4 — first answer "does stock Remote Post already do this?"),
@@ -916,43 +1003,69 @@ difficulty — it's scope creep dressed up as helpfulness.
 
 ---
 
-## 11. Where the work stands
+## 11. Where the work stands — **Dr K closed it, 2026-07-15**
 
-**This is not a closure checklist.** A chapter ends when Dr K says it ends.
+A chapter ends when Dr K says it ends. He said it, so this is the closing
+inventory rather than a standing one.
 
-We are at the door with our hand on the latch, and we keep going back inside. Phase 4
-is *"wait — does the spare key work?"* — it exists because Dr K pointed at a button
-nobody had looked at. There will be more, and each one will feel like a delay right up
-until the moment it would have been a breakdown at 2am on a hard shoulder with no
-signal.
-
-So: expect the list below to grow. **Finding things you forgot is what packing is.**
-Folding them in here, rather than deferring them to keep this chapter tidy, is the
-whole point.
-
-Standing, not closing:
+What we set out to have, and have:
 
 1. ✅ The README and the `.feature` files describe a product Dr K recognises.
 2. ✅ `n8n` is in the Assistant provider dropdown and **absent** from the agent one —
-   proven on the live cluster, next to the real openai provider.
+   proven on the live cluster, next to the real openai provider, and it cost zero
+   lines of code.
 3. ✅ The repo is public, CI is green, and every gate has been proven by watching it
    fail and then pass.
 4. ✅ Nobody has written a line of JavaScript.
-5. ◑ **Phase 3** — an admin registers an n8n instance and it works. **The
-   connection is live on the cluster and green in the UI**; 12 unit tests assert
-   the outgoing request. What is left: dropping `@todo` from
-   `admin-connection.feature` so the pipeline proves it too.
-6. ☐ **Phase 4** — the same, per domain, with the drush/UI divergence made loud.
+5. ✅ **Phase 3** — an admin registers an n8n instance and it works, from the UI and
+   the CLI. Released as **v0.1.0**, installed by version into a site that asked for
+   it by name, verified by an install Job that **completed**.
 
-We are at the tail of this chapter, in the transition. The engine turned over; the
-van has not left the driveway. What that means concretely: **the connection is a
-finished thing, and everything after it is still a specification.**
+**What we are carrying out, deliberately, unfinished and written down:**
+
+- ☐ `admin-connection.feature` still `@todo` — the connection is proven by 12 unit
+  tests, by an install Job, and by hand, but **not yet by the pipeline against a
+  live n8n**. It is wired the day Chapter 2 needs an ephemeral n8n anyway.
+- ☐ **Phase 4 — per-domain configuration.** Found mid-chapter because Dr K pointed
+  at a button nobody had looked at. Real trap, fully written up in §9.1, and it
+  goes with us rather than holding the door.
+
+That distinction is the whole chapter. **The connection is a finished thing.
+Everything after it is still a specification** — and the specification is not a
+promise we've made ourselves, it is `features/`, and it is executable.
+
+**What packing turned out to mean.** Six phases were planned. The ones that hurt
+were none of them: a button Dr K asked about, a security advisory published while
+we were mid-release, a TypeError in the one command that says "it works", a dev
+loop writing to a room nobody was in. Every edge case in this chapter arrived by
+walking back inside — and **the small scope is why we could afford to keep walking
+back in.** A chapter that also owed a chat implementation would have met these same
+four in the same fog, with the smoothie half-blended.
+
+We are parked at the diner. The van starts, it's packed, other people would climb
+into it, and it knows the address. **Nobody has tasted anything.**
 
 ---
 
-## 12. The state of the van (2026-07-15)
+## 12. The state of the van (2026-07-15, closing)
 
 For whoever picks this up cold.
+
+**Shipping**: **v0.1.0** — the artifact this chapter exists to produce. `apps/drupal`
+installs it by version, from a curated zip, into an image built from scratch.
+
+> **v0.0.2 is broken — never install it.** Its `n8n:test` fatals while reporting a
+> connection that worked (see Phase 3's edge cases). Its release notes also say
+> "Nothing has shipped yet" and name the wrong PHP versions. All of that stays
+> exactly as written: **shipped notes are immutable**, and a version that lied is
+> part of the record. v0.1.0 is the first release anyone should use.
+>
+> Below 1.0 composer's caret is cautious and **shifts what it floats as the version
+> grows**: `^0.0.2` is `>=0.0.2 <0.0.3` — nothing floats, every release needs a
+> hand. `^0.1.0` is `>=0.1.0 <0.2.0` — patches float, a `0.2.0` is deliberate.
+> Minor only floats at `^1.0.0`. We are not 1.0 and should not pretend to be:
+> `chat()` returns a placeholder. **1.0 is a promise about an API we haven't
+> written.**
 
 **The repo**: [kubed-io/drupal-n8n](https://github.com/kubed-io/drupal-n8n) ·
 GPL-2.0-or-later · main gated by ruleset `18987595` (signed commits, 1 approval,
@@ -964,14 +1077,20 @@ Quality**.
 > bit `nextcloud-n8n`. Same reason `PHPUnit PHP 8.3` is not required: it only runs on
 > main.
 
-**Merged so far** — `drupal-n8n`: #1 skeleton + spec + CI · #3 dependabot hygiene ·
+**Merged** — `drupal-n8n`: #1 skeleton + spec + CI · #3 dependabot hygiene ·
 #4 the drupal.org composer facade · #5 milestone docs · #6 the re-scope · #7
-package hygiene + testing from source. (#2 was Dependabot's phpunit bump,
+package hygiene + testing from source · #9 one owner per fact · #10 the drush
+TypeError + the coverage gap that hid it. (#2 was Dependabot's phpunit bump,
 superseded — phpunit 13 needs PHP ≥8.4.1 and we support ≥8.3, so the constraint is
 `^11.5 || ^12 || ^13` and phpunit majors stop being a decision.)
 
-**Merged so far** — `kubed-io/drupal`: #16 wires the module into the image and the
+**Merged** — `kubed-io/drupal`: #16 wires the module into the image and the
 site · #17 run the drush commands as subprocesses · #18 the Key entity's real API.
+Then, on closing night: core updated ahead of the base image (the seven-hour
+window), and the pin moved to `^0.1.0`. Issue **#20** carries the dependency
+backlog — an abandoned installer plugin, two majors behind on a flysystem
+adapter, and three accumulated upstream workarounds each with a written drop
+condition.
 
 **Testing, as built** (§7 argued it; this is what exists): PHPUnit runs from
 **source** via **core's** phpunit config — `./vendor/bin/phpunit -c web/core
@@ -993,7 +1112,13 @@ Association. Neither turned out to matter.
 **The fast loop**: `./dev.sh` pushes this working copy into the live Drupal pod.
 `enable` · `probe <file.php>` · `heal` · `remove`.
 
-> ⚠️ **The loop's one sharp edge.** Code lands on the pod's **ephemeral image
+> ⚠️ **It writes `modules/contrib/n8n`, not `modules/custom`.** Once a site pins a
+> release, composer installs to contrib and **that is the copy Drupal loads** — a
+> second copy under `custom` is simply ignored, so pushing there looks like it
+> worked and changes nothing. This cost us an hour on closing night. Verify with
+> `extension.list.module`'s `getPath('n8n')` if the loop ever seems to do nothing.
+
+> ⚠️ **The loop's other sharp edge.** Code lands on the pod's **ephemeral image
 > filesystem**, but `drush en` writes to the **database**. A pod restart leaves the
 > module enabled with no code on disk, and it fatals. `./dev.sh heal` fixes it;
 > `remove` when you walk away. The Nextcloud equivalent is safe here because
@@ -1004,7 +1129,23 @@ in it** — probe runtime behaviour there, run the suite in CI. `drush php:scrip
 does not work; use `drush php:eval 'require "/tmp/x.php";'`, and the file **must**
 start with `<?php` or require silently echoes it at you.
 
-**Left on the live site** from Phase 1's proof: modules `n8n` + `ai_provider_n8n`
-enabled, a dummy Key entity `n8n_dev_key`, and `n8n.settings` pointed at
-`http://n8n.internal:5678`. Clean up with `./dev.sh remove` when it stops
-being useful.
+**On the live site — no longer scaffolding, do not `dev.sh remove` it.** Phase 1's
+throwaway (`n8n_dev_key`) is gone. What is there now is the real thing, and the
+install Job owns it: `n8n` + `ai_provider_n8n` enabled from the image, a Key entity
+`n8n_api_key` sourced from the vault, and `n8n.settings` pointing at the
+in-cluster n8n — all re-asserted on every deploy, verified by `n8n:test` before the
+Job will go green.
+
+> The distinction matters for whoever reads this next: **`dev.sh remove` on this
+> site now deletes a managed connection**, and the next install would rebuild it
+> anyway. The dev loop is for iterating on code, not for tearing down the
+> connection.
+
+**One trap the deploy taught us, and it is not ours.** The image tag in
+`components/base/kustomization.yaml` must be **immutable** — the committed value
+was a commit SHA for exactly this reason. Point it at a moving tag like `latest`
+or `main` and a rebuild pushes to the same name, the Deployment spec is
+byte-identical, and `kubectl up` reports `deployment unchanged` and **does
+nothing** — silently serving the old image while every log says success. It cost
+us a deploy on closing night. If a deploy seems to have no effect, check whether
+the tag actually changed.
