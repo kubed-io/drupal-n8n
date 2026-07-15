@@ -11,6 +11,12 @@
 > This chapter is everything before we drive. **Not one sip of smoothie** — we
 > don't taste anything until Chapter 2. What we do here is get a van that starts,
 > that other people would climb into, and that knows where n8n lives.
+>
+> It is also the part where you keep running back inside. Everyone's in the van, and
+> then — *the phone charger.* Then — *did anyone lock the back door?* Each trip back
+> feels like a delay and is actually the reason the trip works. **Every edge case in
+> this chapter arrived that way**, and each one is a thing we'd have discovered at
+> two in the morning on a hard shoulder instead.
 
 ---
 
@@ -877,10 +883,17 @@ difficulty — it's scope creep dressed up as helpfulness.
 
 ## 11. Where the work stands
 
-**This is not a closure checklist.** A chapter ends when Kelly says it ends, and this
-one has already grown once — Phase 4 did not exist as an idea until a stray button on
-the settings form led to it. Expect more. Finding edge cases *is* the work; folding
-them in here rather than deferring them to keep this tidy is the point.
+**This is not a closure checklist.** A chapter ends when Kelly says it ends.
+
+We are at the door with our hand on the latch, and we keep going back inside. Phase 4
+is *"wait — does the spare key work?"* — it exists because Kelly pointed at a button
+nobody had looked at. There will be more, and each one will feel like a delay right up
+until the moment it would have been a breakdown at 2am on a hard shoulder with no
+signal.
+
+So: expect the list below to grow. **Finding things you forgot is what packing is.**
+Folding them in here, rather than deferring them to keep this chapter tidy, is the
+whole point.
 
 Standing, not closing:
 
