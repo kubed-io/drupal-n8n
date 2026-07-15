@@ -160,25 +160,37 @@ jobs:
       with:
         sarif_file: phpstan.sarif
         category: phpstan
+        # We check out into module/, so without this the action reports "the
+        # checkout path provided does not appear to be a git repository" and cannot
+        # tie alerts to the PR's commit.
+        checkout_path: ${{ github.workspace }}/module
 
     # SARIF is machine-readable, which means a failing run says nothing useful in
     # the log. Re-run with a human format so the findings are right here — PHPStan
     # caches, so this costs a second — then fail.
-    # SARIF is machine-readable, so a failing run says nothing useful in the log.
-    # Re-run with a human format to put the findings in the summary. PHPStan caches,
-    # so this costs a second.
+    # PHPStan takes ONE --error-format, unlike Psalm which emits annotations and a
+    # SARIF report in the same run. So we run it again with the github format to get
+    # inline PR annotations. PHPStan caches, so this costs about a second — and
+    # without it the findings live only in the job log.
     - name: Report PHPStan findings
       if: steps.phpstan.outputs.found == 'true'
       run: |
         cd "$DRUPAL_DIR"
         echo "## PHPStan found issues" >> "$GITHUB_STEP_SUMMARY"
+        # github format = inline annotations on the PR diff.
+        ./vendor/bin/phpstan analyse \
+          --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
+          --error-format=github \
+          --memory-limit=512M \
+          --no-progress || true
+        # table format = something a human can read in the summary.
         ./vendor/bin/phpstan analyse \
           --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
           --error-format=table \
           --memory-limit=512M \
           --no-progress | tee /tmp/phpstan.txt || true
         { echo '```'; tail -60 /tmp/phpstan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-        echo "Also in Security → Code scanning, and inline on the PR." >> "$GITHUB_STEP_SUMMARY"
+        echo "Also in Security → Code scanning." >> "$GITHUB_STEP_SUMMARY"
 
     # The only step that fails the job. By here every gate has run and reported, so
     # one run tells you everything that is wrong rather than the first thing.
