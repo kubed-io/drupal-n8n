@@ -48,12 +48,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        # The version the production pod runs. The one that must be green.
+        # The floor: composer.json says php >=8.3, and Drupal 11's own minimum is
+        # 8.3. If this breaks, our stated support is a lie.
         - drupal: '^11'
           php: '8.3'
-        # Cheap early warning for the next PHP.
+        # What the production pod actually runs — verified, not assumed:
+        # PHP 8.5.8, Drupal 11.4.2. This is the one that must be green.
         - drupal: '^11'
-          php: '8.4'
+          php: '8.5'
 
     steps:
     # ── Provision: everything installed up front, before any work happens ─────

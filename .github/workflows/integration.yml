@@ -89,8 +89,8 @@ jobs:
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
       with:
-        # Match the production pod.
-        php-version: '8.3'
+        # Match the production pod — verified: PHP 8.5.8, Drupal 11.4.2.
+        php-version: '8.5'
         extensions: mbstring, gd, pdo_sqlite, sqlite3, dom, curl, xml
         coverage: none
         tools: composer:v2

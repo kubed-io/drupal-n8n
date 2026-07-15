@@ -33,3 +33,8 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 - The design record: `saga/Chapter_1_Packing_the_Van.md`.
 - CI: PHPUnit on PHP 8.3 and 8.4, Drupal coding standards, PHPStan, and a Behat suite against an ephemeral n8n.
 - `dev.sh` — push the working copy into the live Drupal pod and probe it without a commit.
+
+### Changed
+
+- CI now targets PHP 8.5, the version the production pod runs.
+- PHPStan reports through code scanning, so findings show up in the Security tab and as PR annotations.
