@@ -77,6 +77,12 @@ jobs:
         composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
         composer require "drupal/$MODULE:*" drupal/ai drupal/key \
           --no-interaction --no-progress
+        # core-dev brings PHPUnit. Without it PHPStan analyses tests/ and reports
+        # every assertion as an undefined method — noise that buries real findings.
+        # Pinned to the core major for the same reason tests.yml pins it: left
+        # unconstrained, composer backtracks to the Drupal 8-era 8.0.0-beta15.
+        composer require --dev "drupal/core-dev:^11" -W \
+          --no-interaction --no-progress
         composer require --dev drupal/coder mglaman/phpstan-drupal \
           phpstan/phpstan-deprecation-rules phpstan/extension-installer \
           jbelien/phpstan-sarif-formatter \

@@ -25,6 +25,13 @@ services:
       pretty: true
 
 parameters:
+  # phpstan-drupal has to find the Drupal root to know what \Drupal:: returns and
+  # to autoload contrib namespaces. Paths here are relative to THIS file, which
+  # lives at web/modules/contrib/n8n — so three levels up is web/. Without this,
+  # every Drupal\ai\* type reads as class.notFound and the findings are noise.
+  drupal:
+    drupal_root: ../../..
+
   level: 5
 
   paths:
