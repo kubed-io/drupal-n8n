@@ -30,6 +30,7 @@ folder itself is the authoritative detail.
 | [SECURITY.md](SECURITY.md) | How to report vulnerabilities. Read before filing a "security" issue publicly. |
 | [AGENTS.md](AGENTS.md) | Cold-start orientation for AI coding agents. |
 | [LICENSE.txt](LICENSE.txt) | GPL-2.0-or-later. Drupal's licence, not negotiable — see [Licence](#licence). |
+| [.gitattributes](.gitattributes) | `export-ignore` decides what ships. Composer's `vcs` repo downloads a **zip from GitHub's API** rather than cloning, so this file is the only thing keeping our tests, CI and saga out of `web/modules/contrib/n8n` on someone's production site. **Adding a dev-only file? Add it here too.** |
 | [composer.json](composer.json) | Declares the **drupal.org composer repository**. Modules hosted *on* drupal.org omit this because their packaging resolves `drupal/*` for them — we are on GitHub, so we must say where those packages come from, or Dependabot cannot resolve them and the update job errors out. Composer only honours `repositories` from the **root** package, so this is invisible to a site installing the module. |
 | `n8n.info.yml`, `src/` | The **base module**: the n8n connection, the REST client, drush commands. Ships no features of its own. |
 | `modules/ai_provider_n8n/` | The headline: n8n agents as Drupal AI Assistants. One `Plugin/AiProvider/`. |
@@ -270,7 +271,11 @@ Drupal's PHPUnit `Functional` / `FunctionalJavascript` tiers are **not used** �
 Behat covers that layer.
 
 ```sh
-composer run test:unit          # PHPUnit
+# From your Drupal root — we use CORE's phpunit config, not our own. Its bootstrap
+# is relative to core/ so it is always right, and its suites already glob contrib
+# at ../modules/*/**/tests/src/*. --group n8n scopes it to us.
+./vendor/bin/phpunit -c web/core --group n8n
+
 composer run cs:fix             # Drupal coding standards
 composer run stan               # PHPStan
 

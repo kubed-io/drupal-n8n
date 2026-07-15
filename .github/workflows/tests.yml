@@ -92,23 +92,28 @@ jobs:
 
     # The module under test is wired in as a path repo, so composer installs the
     # working tree rather than a published release.
+    # A path repo symlinks by default, so web/modules/contrib/n8n becomes the
+    # working tree and the suite below runs from SOURCE rather than from a copy.
+    #
+    # Requiring the module rather than checking it out in place is deliberate: it
+    # resolves our transitive dependencies from our own composer.json, and proves
+    # the package is installable at all.
+    #
+    # core-dev is PINNED to the core major. Unconstrained, composer silently
+    # backtracks to drupal/core-dev 8.0.0-beta15 — a Drupal 8-era metapackage with
+    # no dependencies — and the install goes green with no phpunit, failing later
+    # with a baffling "./vendor/bin/phpunit: No such file or directory".
     - name: Require the module from the working tree
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
-        # symlink:false so the module is COPIED to web/modules/contrib/n8n.
-        # With a symlink, relative paths in phpunit.xml.dist resolve against
-        # the working tree and cannot find core.
-        composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
         composer require "drupal/$MODULE:*" drupal/ai drupal/key \
           --no-interaction --no-progress
-        # PIN core-dev to the core major. Unconstrained, composer silently
-        # backtracks to drupal/core-dev 8.0.0-beta15 — a Drupal 8-era metapackage
-        # with no dependencies — and you get a green install with no phpunit and a
-        # baffling "./vendor/bin/phpunit: No such file or directory".
         composer require --dev "drupal/core-dev:^11" -W \
           --no-interaction --no-progress
 
-    # Fail here, loudly, rather than 20 lines later with exit 127.
+
+    # Fails here, loudly, rather than 20 lines later with a bare exit 127.
     - name: Verify the test harness installed
       working-directory: ${{ env.DRUPAL_DIR }}
       run: |
@@ -120,13 +125,38 @@ jobs:
         ./vendor/bin/phpunit --version
 
     # ── Act: everything is provisioned; now run the suite ────────────────────
+    #
+    # Uses CORE's phpunit config — how drupal.org runs contrib — because its
+    # bootstrap is tests/bootstrap.php relative to core/, and so is correct
+    # wherever the module lives. Shipping our own meant a ../../.. that only
+    # resolved in one layout, which is what forced a copy instead of a symlink.
+    #
+    # We pass our module as a PATH rather than using core's suites with --group.
+    # Core's suites glob ../modules/*/**/tests/src/*, which loads EVERY contrib
+    # module's tests — and --group filters what runs, not what gets loaded. So
+    # drupal/key's functional tests get parsed and die on a Drush test trait we do
+    # not install. A path only loads ours; it still finds the submodule's kernel
+    # tests, since PHPUnit recurses.
+    #
+    # Kernel tests need a real database. Core's config reads SIMPLETEST_DB from the
+    # environment — that is what our deleted phpunit.xml.dist used to declare, and
+    # without it every kernel test errors with "There is no database connection so
+    # no tests can be run". SQLite is enough and needs no service container.
+    #
+    # BROWSERTEST_OUTPUT_DIRECTORY silences a warning about an unwritable HTML
+    # output dir; nothing here is a browser test, but core checks for it anyway.
     - name: Run PHPUnit
       working-directory: ${{ env.DRUPAL_DIR }}
+      env:
+        SIMPLETEST_DB: sqlite://localhost/sites/default/files/.phpunit.sqlite
+        BROWSERTEST_OUTPUT_DIRECTORY: /tmp/drupal/web/sites/simpletest/browser_output
       run: |
+        mkdir -p web/sites/simpletest/browser_output web/sites/default/files
         ./vendor/bin/phpunit \
-          -c "web/modules/contrib/$MODULE/phpunit.xml.dist" \
+          -c web/core \
           --log-junit "$GITHUB_WORKSPACE/junit.xml" \
-          --testdox
+          --testdox \
+          "web/modules/contrib/$MODULE"
 
     - name: Publish test results
       if: always()
