@@ -75,7 +75,11 @@ jobs:
         # With a symlink, relative paths in phpunit.xml.dist resolve against
         # the working tree and cannot find core.
         composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
-        composer require "drupal/$MODULE:*" drupal/ai drupal/key \
+        # drush is needed at ANALYSIS time, not just runtime: without it PHPStan
+        # reads src/Drush/Commands as "extends unknown class" and "attribute class
+        # Drush\Attributes\Command does not exist" — the analyser is not wrong, it
+        # is under-equipped. Same failure mode as core-dev missing.
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
           --no-interaction --no-progress
         # core-dev brings PHPUnit. Without it PHPStan analyses tests/ and reports
         # every assertion as an undefined method — noise that buries real findings.
