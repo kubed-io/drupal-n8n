@@ -1,184 +1,196 @@
 # AGENTS.md
 
-Cold-start orientation for AI coding agents (and humans skimming) working in this
-repo. Read this before your first edit.
+Cold-start protocol for AI coding agents. **This file is a memory, not a manual** —
+every entry is a one-line fact plus a link to the section that owns it. If you find
+yourself explaining something here, it belongs somewhere else and this should point
+at it.
 
-## What this repo is
+## The map
 
-**n8n for Drupal** — an umbrella repo whose headline is an **AI Provider plugin**
-that makes each n8n chat-trigger workflow look like a *model* to Drupal's AI module,
-so **n8n agents become Drupal AI Assistants**.
+**Which file owns what.** If you are about to explain something, check whether one
+of these already does — and link to it instead.
 
-| Module | Job |
-|---|---|
-| `n8n` | The connection: base URL, API key via the **Key** module, REST client, drush commands. No features of its own. |
-| `modules/ai_provider_n8n` | The headline. One `Plugin/AiProvider/`. Supports `chat`, nothing else. |
-| `modules/n8n_webform` | Webform submissions → n8n. Subclasses Webform's own Remote Post handler. |
+| Doc | Owns | Go there for |
+|---|---|---|
+| [README](README.md) | **the product** | what it does, and why anyone wants it |
+| [features/](features/) | **the requirements** | exactly how anything must behave |
+| [CONTRIBUTING](CONTRIBUTING.md) | **how to work here** | principles, PR flow, CI, testing, dev loop |
+| [SECURITY](SECURITY.md) | **the threat model** | secrets, SSRF, prompt injection |
+| [saga/](saga/) | **the why, with evidence** | why a decision is what it is |
+| this file | **your protocol** | what to do first, what will bite you |
 
-## What this repo is **not**
+**The concepts, and where to read them properly.** Skim the one-liner; follow the
+link before you act on it.
 
-- **Not a chat widget.** We ship **zero JavaScript**. The chat UI is `ai_chatbot`,
-  which already exists inside `drupal/ai`.
-- **Not a fork of [`n8n_chat`](https://www.drupal.org/project/n8n_chat).** That's a
-  jQuery widget that bypasses Drupal AI entirely. Different job. Don't look at it
-  for patterns.
-- **Not an AI framework.** `drupal/ai` is the framework. We're one plugin in it.
-- **Not the n8n → Drupal direction.** That already works via the deployed **Drupal
-  MCP server** at `/mcp/post`. We write nothing for it.
+| Concept | One line | Read |
+|---|---|---|
+| What we are | An **AI Provider plugin**: each n8n chat-trigger workflow becomes a *model*, so n8n agents become Drupal **assistants**. | [README § how it works](README.md#how-it-works) |
+| The whole thesis | n8n agent ≡ Drupal **assistant**. A Drupal *agent* is a much smaller thing. Confusing them is the one fatal mistake. | [README § the big idea](README.md#the-big-idea-an-n8n-agent-is-a-drupal-assistant) |
+| The ownership split | n8n owns the model, prompt, memory, tools. Drupal owns the chat box and the door. **No third place.** | [README § who owns what](README.md#who-owns-what) |
+| Why n8n is hidden from agents | We decline the `ChatTools` capability; Drupal's own filtering does the rest. Zero lines of code. | [README § why n8n is absent](README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown) |
+| Settings that do nothing | The assistant form shows prompt/history/tools fields that are **inert** under n8n. This surprises everyone. | [README § settings that intentionally do nothing](README.md#settings-that-intentionally-do-nothing) |
+| What ships | `n8n` (connection) + `ai_provider_n8n` (the headline) + `n8n_webform` (later). | [README § modules in this repo](README.md#modules-in-this-repo) |
+| What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction. | [README § not this module](README.md#not-this-module) |
+| Where the work stands | The **connection is live**; everything past it is specification. | [saga § where we are](saga/Chapter_1_Packing_the_Van.md) |
 
-## Read first
+---
 
-- [features/](features/) — **the requirements.** Gherkin, written before the code.
-  If you're implementing something, its spec is here. **Start here.**
-- [README.md](README.md) — the product as a user sees it.
-- [saga/Chapter_1_Packing_the_Van.md](saga/Chapter_1_Packing_the_Van.md) — the why.
-  §2 is *verified environment* — **treat it as fact, do not re-derive it.**
-- [CONTRIBUTING.md](CONTRIBUTING.md) — process, CI, changelog rules.
+## First moves — in this order
 
-## First moves on any task
-
-1. **Find the scenario.** Nearly everything is already specified in `features/`. If
-   what you're asked to do contradicts a scenario, **stop and say so** — don't
-   silently pick one.
-2. **Check saga §2 before researching.** The assistant-vs-agent model, the capability
-   filtering, the session bridge and the known hazards are all recorded with file and
-   line citations. Re-discovering them wastes a session.
+1. **Find the scenario.** Almost everything is already specified in
+   [features/](features/). If your task contradicts one, **stop and say so** — do
+   not silently pick a side.
+2. **Read [saga §2](saga/Chapter_1_Packing_the_Van.md) before researching anything
+   about Drupal AI.** It is *verified environment* with file:line citations.
+   Re-deriving it wastes a session.
 3. **Ask what stock mechanism already does this.** The answer is usually "Drupal or
-   n8n already does". See the "don't write it" table in saga §3.
+   n8n already does" — see the "don't write it" table in saga §3.
 4. **Then write the smallest thing that satisfies the scenario.**
 
-## Architectural non-negotiables
+---
 
-These are not style preferences. Violating one breaks the product's thesis.
+## Non-negotiables
 
-- **n8n owns the brain.** Model, system prompt, memory, tools, RAG — all n8n's.
-  Drupal owns the chat box and the door. **Never add a Drupal setting for something
-  n8n owns.** When Drupal hands us a system prompt, we **drop it**; when it offers
-  history, we **ignore it**. This is specified in
-  [`features/prompt-ownership.feature`](features/prompt-ownership.feature).
-- **n8n is an assistant, never an agent.** The provider supports `chat` and
-  **declines the `ChatTools` capability**. Drupal's own capability filtering then
-  keeps us out of `ai_agents`, CKEditor AI, and field automators — because those ask
-  for the `chat_with_tools` / `chat_with_complex_json` **pseudo operation types**,
-  which resolve to `chat` filtered by capability.
-  **If you are writing a `hook_form_alter` to hide n8n from somewhere, you have
-  broken the capability contract instead of fixing it.** See
-  [`features/agent-exclusion.feature`](features/agent-exclusion.feature).
-- **Send only the newest message.** n8n's memory node already holds the history,
-  keyed by the session id we send. Replaying Drupal's history makes the agent see
-  every message twice.
-- **Zero JavaScript.** If a task seems to need JS, it's the wrong task.
-- **The secret is the Key module's.** Never log it, echo it, or copy it into config.
-- **Least code wins.** If your diff grows the surface, justify it in the PR.
+Violating one breaks the product's thesis, not just its style.
 
-## Hard-won gotchas
+- **n8n owns the brain** — model, prompt, memory, tools. Never add a Drupal setting
+  for something n8n owns. → [CONTRIBUTING § n8n owns the brain](CONTRIBUTING.md#n8n-owns-the-brain--never-take-it-back)
+  · spec: [prompt-ownership.feature](features/prompt-ownership.feature)
+- **n8n is an assistant, never an agent.** We support `chat` and decline the
+  `ChatTools` capability; Drupal's own filtering does the rest. **Writing a
+  `hook_form_alter` to hide n8n means you broke the contract instead of fixing it.**
+  → [README § why n8n is absent from the Agent dropdown](README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown)
+  · spec: [agent-exclusion.feature](features/agent-exclusion.feature)
+- **Zero JavaScript.** If a task seems to need JS, it is the wrong task.
+  → [CONTRIBUTING § least code wins](CONTRIBUTING.md#least-code-wins)
+- **Least code wins.** A diff that grows the surface must justify itself.
+  → [CONTRIBUTING § least code wins](CONTRIBUTING.md#least-code-wins)
+- **The secret is the Key module's.** Never log, echo, or copy it into config.
+  → [SECURITY § secrets policy](SECURITY.md#secrets-policy)
+- **The spec comes first.** Behaviour change ⇒ change the `.feature` in the same PR.
+  → [CONTRIBUTING § the spec comes first](CONTRIBUTING.md#the-spec-comes-first)
 
-Each of these cost someone a session. Don't re-pay.
+---
 
-- **The session bridge is a *tag*.** `AiAssistantApiRunner` passes
-  `'ai_assistant_thread_' . $threadId` in the `$tags` array to `provider->chat()`.
-  With `allow_history == 'session_one_thread'` the id is deterministic:
-  `assistant_thread_<assistant>_<user>`. That's the n8n `sessionId`. **No core patch
-  needed** — read it out of the tags.
-- **Drupal force-overrides the system prompt.** `AiAssistantApiRunner::process()`
-  replaces the assistant's `system_prompt` with the module's own bundled
-  `resources/system_prompt.txt` unless the site setting
-  `ai_assistant_custom_prompts` is on. You cannot switch this off per-assistant. We
-  ignore the prompt entirely, so it doesn't matter — but don't waste time trying to
-  make the field work.
-- **A `promptJsonDecoder` sits between the provider and the response**
-  (`AiAssistantApiRunner`, after `chat()`). A JSON-shaped agent answer may be parsed
-  as an actions array. This is the sharpest edge in the design — saga §5 Fork F.
-- **Behat: literal `(` `)` in step text** becomes a regex group → the step goes
+## What will bite you
+
+Each cost someone a session. One line each; follow the link before you act on it.
+
+**Drupal AI internals** → [saga §2.2](saga/Chapter_1_Packing_the_Van.md)
+
+- The session bridge is a **tag** — `ai_assistant_thread_<id>` in `$tags`, not a
+  parameter. No core patch needed.
+- Drupal **force-overrides the assistant's system prompt** with its own bundled
+  file. You cannot switch it off per-assistant. We ignore the prompt entirely, so
+  do not try to make that field work.
+- A **`promptJsonDecoder`** sits between the provider and the response. A
+  JSON-shaped answer may be parsed as an actions array. Sharpest edge in the design
+  — saga §5 Fork F.
+
+**Domain config** → [saga §9.1](saga/Chapter_1_Packing_the_Van.md)
+
+- Overrides live in a config **collection** `domain.<id>`, **not** a config object.
+- **`drush --uri` does NOT populate the domain context** — overrides never apply in
+  CLI. Our commands must take `--domain` and hit the collection directly.
+- Read/write via `domain.config_factory_override` →
+  `getOverride()` / `getOverrideEditable()`.
+
+**Testing + CI** → [CONTRIBUTING § testing](CONTRIBUTING.md#testing) · [§ what CI expects](CONTRIBUTING.md#what-ci-expects)
+
+- **There is no `phpunit.xml.dist`** — we use core's. Do not add one back; that file
+  is what caused the copy/symlink/restore mess.
+- **`--group` does not scope core's config** — its suites load *every* contrib
+  module's tests. Pass our module as a path.
+- Kernel tests need **`SIMPLETEST_DB`** from the environment.
+- **Behat: a literal `(` or `)` in step text** becomes a regex group → the step goes
   undefined and **the suite fails while looking green**.
-- **n8n's API key has no headless mint.** It's `POST /rest/login` →
-  `POST /rest/api-keys`. Two traps: n8n's cookie attributes make **curl's cookie jar
-  drop it** (read `Set-Cookie` off the headers and replay verbatim), and the key
-  **label must be unique** (`UNIQUE(userId,label)` → duplicates 500).
-- **n8n owner provisioning needs a *bcrypt hash*, not a plaintext password**
-  (`N8N_INSTANCE_OWNER_PASSWORD_HASH`). It fails quietly otherwise.
-- **Integration fixtures are LLM-free** — `Chat Trigger → Code → responseMode:
-  lastNode`. **Never add an LLM-backed fixture.** If a scenario needs a real model,
-  it's testing n8n, not us.
-- **Prefer `responseMode: lastNode`** over a Respond-to-Webhook node — Chat Trigger +
-  Respond to Webhook has known rough edges in n8n.
-- **`drupal.org/project/n8n_chat` and `/project/n8n` both exist and are both dead.**
-  Neither is a source of patterns. See saga §2.3–2.4.
+- **Fixtures are LLM-free** and must stay so.
+  → [features/README § fixtures](features/README.md#fixtures--the-tests-own-their-workflows)
+
+**n8n** → [saga §7.1](saga/Chapter_1_Packing_the_Van.md)
+
+- The API key has **no headless mint**: `POST /rest/login` → `POST /rest/api-keys`.
+  curl's cookie jar drops n8n's cookie — read `Set-Cookie` off the headers. The key
+  label must be unique or it 500s.
+- Owner provisioning needs a **bcrypt hash**, not a plaintext password. Fails quietly.
+- Prefer **`responseMode: lastNode`** over a Respond-to-Webhook node.
+
+**The mistake I keep making** — and the reason half this list exists:
+
+> **Read the API before you call it.** Two live-cluster failures came from inventing
+> methods that looked plausible (`DrushCommands` in-process; `Key::getKeyProviderSettings()`),
+> and a domain-config probe "proved" a module was broken when it had proved my guess
+> wrong. When something looks broken, first check you are driving it with its own API.
+
+---
 
 ## Reference implementations
 
-When you need "how does Drupal do this?", look here **before inventing**:
+Look here **before inventing**:
 
 | Need | Look at |
 |---|---|
-| The provider plugin shape | `ai_provider_openai` — same job, ~5 files. **The reference for this repo.** |
-| A minimal `AiProvider` + `ChatInterface` | `drupal/ai`'s `tests/modules/ai_test` → `EchoProvider`. |
-| Testing a provider with no network | `ai_provider_openai`'s Kernel tests — Guzzle `MockHandler` + `Middleware::history()` asserts the **outgoing payload**. |
-| The sibling project's conventions | [nextcloud-n8n](https://github.com/kubed-io/nextcloud-n8n) — same ownership split, applied to files. Its `mint-n8n-key.sh` and `N8nApiTrait` port here. |
+| The provider plugin shape | `ai_provider_openai` — same job, ~5 files. **The reference.** |
+| A minimal `AiProvider` + `ChatInterface` | `drupal/ai`'s `tests/modules/ai_test` → `EchoProvider` |
+| Testing a provider with no network | `ai_provider_openai`'s Kernel tests — Guzzle `MockHandler` + `Middleware::history()` |
+| Our own conventions, applied to files | [nextcloud-n8n](https://github.com/kubed-io/nextcloud-n8n) — the sibling |
 
-## Core commands
+---
+
+## Commands
 
 ```sh
-# From a Drupal root. We use CORE's phpunit config, not our own — see CONTRIBUTING.
-./vendor/bin/phpunit -c web/core --testdox web/modules/contrib/n8n
-composer run cs:fix         # Drupal coding standards
-composer run stan           # PHPStan
+./vendor/bin/phpunit -c web/core --testdox web/modules/contrib/n8n   # from a Drupal root
+composer run cs:fix
+composer run stan
+vendor/bin/behat --config behat.dist.yml                             # from tests/integration/
 
-vendor/bin/behat --config behat.dist.yml   # from tests/integration/
-
-drush n8n:set-url <url>     # point the site at n8n
-drush n8n:set-key <key_id>  # a Key entity's name, never the secret
-drush n8n:test              # headless "Test connection"
+drush n8n:set-url <url>
+drush n8n:set-key <key_id>     # a Key entity's name, never the secret
+drush n8n:test
 ```
 
-**These three are all that exist.** The README also documents `n8n:models` and
-`n8n:chat` — those are **spec, not code**; they arrive with model discovery in
-Chapter 2. Do not cite them as if they work.
+**Those three drush commands are all that exist.** The README also documents
+`n8n:models` and `n8n:chat` — that file is the **specification**, so it describes
+the finished product. They arrive with model discovery in Chapter 2. Do not cite
+them as working.
 
-## Process — short version
+`./dev.sh` pushes this working copy into the live Drupal pod for runtime probing.
+**Read its header before using `enable`** — the code is ephemeral but `drush en`
+persists, so a pod restart breaks the site until `./dev.sh heal`.
+→ [CONTRIBUTING § the fast loop](CONTRIBUTING.md#the-fast-loop-iterate-against-the-live-cluster)
 
-1. **Branch + PR** to `main`. Squash-merge.
-2. **Add a `CHANGELOG.md` line** under `## [Unreleased]` — CI fails without it.
-   One line, never a paragraph. **Only ever edit `[Unreleased]`**; versioned
-   sections are immutable.
-3. **Never bump a version in a feature PR** — `publish.yml` owns versioning.
-4. **CI green + one approval** are hard gates.
-5. **Docs-only?** Saga/README/markdown changes can go straight to `main` or fold
-   into the nearest PR. No ceremony.
-6. **Verify action versions** with `gh api repos/<o>/<r>/releases/latest` before
-   pinning a `uses:`. LLMs reach for stale majors.
-7. **No `${{ }}` inside `run:` bash** — bind to `env:`, read `$VAR`. A `run:` block
-   is pure bash, always.
-8. **No `cd` in a `run:` block** — set `working-directory:` on the step, so the step
-   header says where it runs. `${{ }}` is fine *there*, just not in `run:`. Exception:
-   a step that creates the directory must split into create-then-work.
+---
 
-## Shape of a feature change
+## Process — the 20-second version
 
-Touch all five, or explain why not:
+Full detail: [CONTRIBUTING § the flow](CONTRIBUTING.md#the-flow-issue--pr--merge).
 
-1. **Spec** — `features/*.feature`
-2. **Code** — the smallest change that satisfies it
-3. **Unit/Kernel test** — assert the outgoing payload with a mocked transport
-4. **Integration step** — `tests/integration/`
-5. **Docs** — README entry with `📋 spec:` + `🛠` links, and a CHANGELOG line
+1. Branch → PR → squash-merge. CI green + one approval are hard gates.
+2. **Every PR adds a `CHANGELOG.md` line under `[Unreleased]`** — CI fails without
+   one. One line, never a paragraph. Only ever edit `[Unreleased]`.
+   → [§ commits, changelog, versions](CONTRIBUTING.md#commits-changelog-versions)
+3. **Never bump a version in a feature PR** — `publish.yml` owns that.
+4. **Docs-only?** Straight to `main`, or fold into the nearest PR. No ceremony.
+5. Touching a workflow? **No `${{ }}` inside `run:`; no `cd` — use
+   `working-directory:`; verify action versions with `gh api .../releases/latest`.**
+   → [§ workflow authoring conventions](CONTRIBUTING.md#workflow-authoring-conventions)
 
-## Principles for AI work here
+**Shape of a feature change** — touch all five, or say why not:
+spec → code → unit/kernel test → integration step → docs + changelog.
+→ [CONTRIBUTING § anatomy of a feature change](CONTRIBUTING.md#anatomy-of-a-feature-change)
 
-- **Scope creep is the failure mode of this repo.** Your instinct is to be helpful by
-  adding options; this module's instinct is to have fewer. When those conflict, the
-  module wins. The best PR here usually deletes something.
-- **Don't assert what the code does — assert what the spec says.** The spec is in
-  `features/`. First-pass AI tests get this backwards.
-- **Cite, don't guess.** Saga §2 has file:line citations for every load-bearing
-  claim about Drupal AI internals. If you're about to state how `ai` works, check.
-- **Say when you're unsure.** A flagged unknown is worth more than a confident wrong
-  answer — saga §9 is a list of things we deliberately admitted we hadn't proven.
+---
 
-## When stuck
+## Working with Kelly
 
-- Behaviour question → `features/`
-- "Why is it like this?" → `saga/Chapter_1_Packing_the_Van.md`
-- "How does Drupal do X?" → `ai_provider_openai`, then `drupal/ai` itself
-- "How does n8n do X?" → the n8n MCP tools, or the live homelab instance
-- Still stuck → say so in the PR/issue rather than inventing a mechanism
+- **He will grill you, and he is usually right.** When he is not, **push back with
+  evidence** — the ecosystem's own source, not assertion. He is explicit that he
+  wants the correction rather than compliance.
+- **Scope creep is this repo's failure mode.** Your instinct is to help by adding
+  options; this module's instinct is to have fewer. The best PR here usually deletes
+  something.
+- **Never declare a chapter finished.** Scope grows as edge cases surface — that is
+  the process working. Only Kelly closes a chapter.
+- **Say when you are unsure.** A flagged unknown beats a confident wrong answer;
+  saga §9 is a list of things we deliberately admitted we had not proven.

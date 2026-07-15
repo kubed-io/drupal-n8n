@@ -147,7 +147,7 @@ The `n8n_webform` submodule adds an **n8n** handler to [Webform](https://www.dru
 
 It extends Webform's own Remote Post handler rather than replacing it, so everything Webform already does — conditions, token replacement, error handling, response mapping back into the submission — works unchanged.
 
-📋 spec: [`features/webform-submit.feature`](features/webform-submit.feature) · 🛠 [`modules/n8n_webform/src/Plugin/WebformHandler/N8nRemotePostWebformHandler.php`](modules/n8n_webform/src/Plugin/WebformHandler/N8nRemotePostWebformHandler.php)
+📋 spec: [`features/webform-submit.feature`](features/webform-submit.feature) — **not built yet**; the spec is `@todo` until we answer whether stock Remote Post already does the job.
 
 ### Drupal answers back
 

@@ -415,10 +415,17 @@ admin-set n8n base URL is a deliberate, documented SSRF surface — read
 
 ## Where to look next
 
-- **"What should it do?"** → [features/](features/)
-- **"How does it work?"** → [README.md](README.md)
-- **"Why was it built this way?"** → [saga/Chapter_1_Packing_the_Van.md](saga/Chapter_1_Packing_the_Van.md)
-- **"I'm an AI agent — where do I start?"** → [AGENTS.md](AGENTS.md)
+Each file owns one thing. If two of them explain the same thing, one is wrong —
+tell us.
+
+| Question | File |
+|---|---|
+| "What is this, and why would I want it?" | [README.md](README.md) — the product |
+| "How exactly must this behave?" | [features/](features/) — **the requirements** |
+| "How do I work here?" | this file — principles, PR flow, CI, testing |
+| "Is this safe? How do I report a hole?" | [SECURITY.md](SECURITY.md) |
+| "Why is it like this?" | [saga/](saga/) — the design record, with evidence |
+| "I'm an AI agent, where do I start?" | [AGENTS.md](AGENTS.md) — protocol + a map |
 
 Thanks for contributing. Be kind in reviews, validate against a real n8n, and
 remember that the best PR here is usually the one that deletes something.
