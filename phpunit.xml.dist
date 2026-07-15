@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PHPUnit runs the Unit + Kernel tiers only. Drupal's Functional and
+  FunctionalJavascript tiers are deliberately unused — Behat covers that layer,
+  driving a real Drupal against a real ephemeral n8n. See CONTRIBUTING.md
+  "Testing" and saga/Chapter_1_Packing_the_Van.md §7.
+
+  Run from a Drupal root that has this module installed:
+    ../../vendor/bin/phpunit -c modules/contrib/n8n
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         bootstrap="../../core/tests/bootstrap.php"
+         colors="true"
+         beStrictAboutTestsThatDoNotTestAnything="true"
+         beStrictAboutOutputDuringTests="true"
+         failOnWarning="true"
+         cacheDirectory=".phpunit.cache">
+
+  <testsuites>
+    <testsuite name="unit">
+      <directory>tests/src/Unit</directory>
+      <directory>modules/*/tests/src/Unit</directory>
+    </testsuite>
+    <testsuite name="kernel">
+      <directory>tests/src/Kernel</directory>
+      <directory>modules/*/tests/src/Kernel</directory>
+    </testsuite>
+  </testsuites>
+
+  <php>
+    <ini name="error_reporting" value="32767"/>
+    <ini name="memory_limit" value="-1"/>
+    <env name="SIMPLETEST_BASE_URL" value="http://localhost"/>
+    <env name="SIMPLETEST_DB" value="sqlite://localhost/sites/default/files/.sqlite"/>
+  </php>
+
+  <source>
+    <include>
+      <directory>src</directory>
+      <directory>modules/*/src</directory>
+    </include>
+  </source>
+
+</phpunit>

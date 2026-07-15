@@ -1,0 +1,131 @@
+name: 🛡️ Quality
+
+# The slower gates, kept out of the fast test loop: dependency audit, Drupal's
+# coding standard, and static analysis.
+#
+# Why PHPStan and not Psalm: PHPStan is the Drupal ecosystem's analyser —
+# drupal/ai and ai_provider_openai both ship a phpstan.neon, and
+# mglaman/phpstan-drupal teaches it the container, entities and hooks. Our sibling
+# nextcloud-n8n uses Psalm because that is the Nextcloud norm. The platform picks
+# the tool, same as it picks the licence.
+#
+# CodeQL does not analyse PHP — it is the only top-10 language it skips — so PHPStan
+# IS our code scanner, exactly as Psalm is in the sibling project. It emits SARIF
+# (via jbelien/phpstan-sarif-formatter, since phpstan#5973 is still open) which we
+# upload to code scanning; GitHub renders both the Security-tab alerts and the
+# inline PR annotations from that single upload.
+
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+    - main
+
+permissions:
+  contents: read
+  # Upload the PHPStan SARIF to Security → Code scanning.
+  security-events: write
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MODULE: n8n
+  DRUPAL_DIR: /tmp/drupal
+
+jobs:
+
+  quality:
+    name: PHP Quality
+    runs-on: ubuntu-latest
+    steps:
+    # ── Provision ────────────────────────────────────────────────────────────
+    - name: Checkout module
+      uses: actions/checkout@v7
+      with:
+        path: module
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        # Match the production pod.
+        php-version: '8.3'
+        coverage: none
+        tools: composer:v2
+
+    # PHPCS and PHPStan both need Drupal on disk: the coder standard resolves
+    # against core, and phpstan-drupal boots the container to know what \Drupal::
+    # returns. So we build the same throwaway site tests.yml does.
+    - name: Build a throwaway Drupal
+      run: |
+        composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
+          --no-interaction --no-progress --no-install
+        cd "$DRUPAL_DIR"
+        composer config --no-plugins allow-plugins.composer/installers true
+        composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
+        composer config --no-plugins allow-plugins.drupal/core-project-message true
+        composer config --no-plugins allow-plugins.phpstan/extension-installer true
+        composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+        composer config minimum-stability dev
+        composer config prefer-stable true
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key \
+          --no-interaction --no-progress
+        composer require --dev drupal/coder mglaman/phpstan-drupal \
+          phpstan/phpstan-deprecation-rules phpstan/extension-installer \
+          jbelien/phpstan-sarif-formatter \
+          --no-interaction --no-progress
+
+    # ── Act ──────────────────────────────────────────────────────────────────
+    - name: Audit composer dependencies
+      working-directory: module
+      run: |
+        echo "## composer audit" >> "$GITHUB_STEP_SUMMARY"
+        if composer audit --format=plain --no-dev | tee audit.txt; then
+          echo "✅ No advisories" >> "$GITHUB_STEP_SUMMARY"
+        else
+          status=$?
+          { echo '```'; cat audit.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+        fi
+
+    - name: Coding standard (Drupal + DrupalPractice)
+      run: |
+        cd "$DRUPAL_DIR"
+        ./vendor/bin/phpcs \
+          --standard="web/modules/contrib/$MODULE/phpcs.xml.dist" \
+          --report=full \
+          --report-summary
+
+    # PHPStan is the code scanner. Emit SARIF rather than annotations: the upload
+    # below produces the inline PR annotations *and* the Security-tab alerts, so
+    # one run covers both. `|| true` because a findings-exit must still upload —
+    # the gate is the next step, which fails on real findings.
+    - name: Static analysis (PHPStan)
+      id: phpstan
+      run: |
+        cd "$DRUPAL_DIR"
+        ./vendor/bin/phpstan analyse \
+          --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
+          --error-format=sarif \
+          --memory-limit=512M \
+          --no-progress > "$GITHUB_WORKSPACE/phpstan.sarif" || echo "found=true" >> "$GITHUB_OUTPUT"
+
+    # Always upload, even when PHPStan found something — an empty Security tab on a
+    # failing run would be worse than useless.
+    - name: Upload PHPStan SARIF to code scanning
+      if: always()
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: phpstan.sarif
+        category: phpstan
+
+    - name: Fail on PHPStan findings
+      if: steps.phpstan.outputs.found == 'true'
+      run: |
+        echo "## PHPStan found issues" >> "$GITHUB_STEP_SUMMARY"
+        echo "See the annotations on this PR, or Security → Code scanning." >> "$GITHUB_STEP_SUMMARY"
+        exit 1

@@ -1,0 +1,4 @@
+administer n8n:
+  title: 'Administer the n8n connection'
+  description: 'Set the n8n base URL and choose the key holding its API key. This lets the site issue requests to any host the URL names — see SECURITY.md.'
+  restrict access: true

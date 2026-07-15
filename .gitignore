@@ -1,0 +1,7 @@
+/vendor/
+/tests/integration/vendor/
+/tests/integration/junit/
+.phpunit.cache/
+.phpunit.result.cache
+composer.phar
+*.sarif

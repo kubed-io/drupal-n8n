@@ -1,0 +1,8 @@
+name: 'n8n Provider'
+type: module
+description: 'Use your n8n AI agents as Drupal AI Assistants.'
+package: 'AI Providers'
+core_version_requirement: ^10.3 || ^11
+dependencies:
+- ai:ai
+- n8n:n8n

@@ -1,0 +1,17 @@
+{
+  "name": "kubed-io/drupal-n8n-integration",
+  "description": "Integration tests (Behat) for the n8n Drupal module. Isolated from the module's root composer so Behat's dependencies never constrain the module itself, and so a Drupal site can require the module without dragging Behat in.",
+  "license": "GPL-2.0-or-later",
+  "require-dev": {
+    "behat/behat": "^3.32",
+    "guzzlehttp/guzzle": "^7.9"
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Drupal\\Tests\\n8n\\Integration\\": "bootstrap/"
+    }
+  }
+}

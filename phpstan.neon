@@ -1,0 +1,42 @@
+# Static analysis, Drupal-aware.
+#
+# PHPStan (not Psalm) is the Drupal ecosystem's analyser: drupal/ai and
+# ai_provider_openai both ship a phpstan.neon, and mglaman/phpstan-drupal teaches
+# it about the container, entities, and hooks. Our sibling nextcloud-n8n uses Psalm
+# because that is the Nextcloud norm — the platform picks the tool, same as it
+# picks the licence.
+#
+# PHPStan is also our PHP CODE SCANNER, for the same reason Psalm is in the sibling
+# project: CodeQL does not analyse PHP — the only top-10 language it skips — so
+# without this the Security tab would be empty for a PHP-only repo.
+#
+# PHPStan has no native SARIF output (phpstan#5973, open since 2021), so the
+# formatter below is registered by jbelien/phpstan-sarif-formatter. It gives us
+# `--error-format=sarif`, which quality.yml uploads to code scanning; GitHub then
+# renders both the Security-tab alerts AND the inline PR annotations from that one
+# upload. If this ever breaks, the fallback is `--error-format=github`, which gives
+# annotations only.
+services:
+  errorFormatter.sarif:
+    class: PHPStanSarifErrorFormatter\SarifErrorFormatter
+    arguments:
+      relativePathHelper: @simpleRelativePathHelper
+      currentWorkingDirectory: %currentWorkingDirectory%
+      pretty: true
+
+parameters:
+  level: 5
+
+  paths:
+  - src
+  - modules
+
+  excludePaths:
+    analyseAndScan:
+    - */vendor/*
+    - */node_modules/*
+
+  ignoreErrors:
+  # Drupal's plugin managers return mixed by contract, so calls on a created
+  # instance cannot be narrowed without a docblock lie.
+  - identifier: method.nonObject

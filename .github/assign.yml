@@ -1,0 +1,3 @@
+# Assign the PR author to their own PR, so an open PR always has an owner.
+addAssignees: author
+addReviewers: false

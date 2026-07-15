@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Drupal's own coding standard, via drupal/coder. This is not a house style we
+  invented — it is what drupal.org enforces, and CONTRIBUTING.md's first principle
+  is to do things the Drupal way.
+
+  DrupalPractice is included on purpose: it catches the Drupal-specific mistakes a
+  generic PHP linter cannot see (t() misuse, \Drupal:: calls where injection
+  belongs, etc.), which is exactly the class of bug an AI-written diff produces.
+-->
+<ruleset name="n8n">
+  <description>Drupal coding standards for the n8n module.</description>
+
+  <file>src</file>
+  <file>modules</file>
+  <file>tests</file>
+
+  <exclude-pattern>*/vendor/*</exclude-pattern>
+  <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+  <arg name="extensions" value="php,module,inc,install,test,profile,theme,info,yml"/>
+  <arg name="colors"/>
+  <arg value="sp"/>
+
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+</ruleset>

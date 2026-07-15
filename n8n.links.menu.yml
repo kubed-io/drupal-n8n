@@ -1,0 +1,5 @@
+n8n.settings_menu:
+  title: n8n
+  description: 'Connect this site to an n8n instance.'
+  route_name: n8n.settings_form
+  parent: system.admin_config_services

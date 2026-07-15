@@ -1,0 +1,46 @@
+{
+  "name": "drupal/n8n",
+  "description": "Use your n8n AI agents as Drupal AI Assistants.",
+  "type": "drupal-module",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/kubed-io/drupal-n8n",
+  "authors": [
+    {
+      "name": "Kelly Ferrone",
+      "homepage": "https://github.com/kubed-io"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/kubed-io/drupal-n8n/issues",
+    "source": "https://github.com/kubed-io/drupal-n8n"
+  },
+  "require": {
+    "php": ">=8.3",
+    "drupal/key": "^1.18"
+  },
+  "require-dev": {
+    "drupal/ai": "^1.4",
+    "drupal/coder": "^8.3",
+    "drupal/core-dev": "^10.3 || ^11",
+    "jbelien/phpstan-sarif-formatter": "^1.2",
+    "mglaman/phpstan-drupal": "^1.2",
+    "phpstan/phpstan-deprecation-rules": "^1.2"
+  },
+  "suggest": {
+    "drupal/ai": "Required by the ai_provider_n8n submodule — n8n agents as AI Assistants.",
+    "drupal/webform": "Required by the n8n_webform submodule — form submissions to n8n."
+  },
+  "scripts": {
+    "test:unit": "phpunit --configuration phpunit.xml.dist",
+    "cs:check": "phpcs",
+    "cs:fix": "phpcbf",
+    "stan": "phpstan analyse --memory-limit=512M"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true
+    }
+  }
+}

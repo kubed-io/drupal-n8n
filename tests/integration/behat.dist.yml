@@ -1,0 +1,45 @@
+# Behat config for the n8n integration suite.
+#
+# Behat owns the functional + integration layer: it drives a REAL Drupal over drush
+# and HTTP against a REAL, ephemeral n8n, and asserts both sides. PHPUnit owns
+# Unit + Kernel. Drupal's own Functional/FunctionalJavascript tiers are unused.
+# The reasoning, and the rejected alternatives, are in
+# saga/Chapter_1_Packing_the_Van.md §7.
+#
+# Deliberately NOT using drupal/drupalextension: it is Behat + Mink + a browser
+# driver, aimed at whole-site acceptance testing. Our assertions are drush + API on
+# both sides, so plain Behat + Guzzle is smaller and truer.
+#
+# Output: Behat's BUILT-IN junit formatter (no third-party dep) writes JUnit XML to
+# junit/, which the integration workflow feeds to the same EnricoMi reporter the
+# unit suite uses → sticky PR comment + job summary.
+#
+# Env the FeatureContext reads, set by the workflow or the local runner:
+#   DRUSH, DRUPAL_BASE_URL, N8N_URL, N8N_API_KEY
+
+default:
+  # @todo scenarios are the documented spec for stages not yet wired — their step
+  # definitions do not exist yet. Skip them so CI runs only live scenarios, and
+  # drop the tag from a feature as its steps land. A @todo feature is
+  # specification, not dead code.
+  gherkin:
+    filters:
+      tags: '~@todo'
+
+  suites:
+    default:
+      paths:
+        # Gherkin lives at the repo root under features/ so the human-readable use
+        # cases are prominent and linkable from the README; this config stays down
+        # here with the rest of the test plumbing.
+        - '%paths.base%/../../features'
+      contexts:
+        - Drupal\Tests\n8n\Integration\FeatureContext
+
+  formatters:
+    # Human-readable progress in the log…
+    pretty:
+      verbose: true
+    # …and machine-readable JUnit for the CI reporter.
+    junit:
+      output_path: '%paths.base%/junit'

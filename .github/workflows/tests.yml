@@ -1,0 +1,113 @@
+name: 🧪 Tests
+
+# The fast loop: PHPUnit Unit + Kernel. No network, no n8n, no browser.
+#
+# A Drupal module cannot be tested standalone — PHPUnit needs core's bootstrap and
+# the site's autoloader. So we build a throwaway Drupal, drop this module in as a
+# composer PATH repository, and run the module's own phpunit.xml.dist from the
+# Drupal root. That is the same shape the Drupal GitLab CI templates use, minus
+# GitLab.
+#
+# Functional / FunctionalJavascript are deliberately absent — Behat owns that
+# layer (integration.yml). See CONTRIBUTING.md "Testing".
+
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+    - main
+
+permissions:
+  contents: read
+  # Test results → sticky PR comment + check run.
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+# Static values live here so `run:` steps are pure bash reading $VARS — never
+# inline GitHub templating. See CONTRIBUTING.md "Workflow authoring conventions".
+env:
+  MODULE: n8n
+  DRUPAL_DIR: /tmp/drupal
+
+jobs:
+
+  phpunit:
+    # The job name becomes the check context that branch protection requires, so it
+    # is set explicitly — a bare `name: PHPUnit` under a matrix would render as
+    # "PHPUnit (^11, 8.3)" and make the ruleset brittle.
+    name: PHPUnit PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        # The version the production pod runs. The one that must be green.
+        - drupal: '^11'
+          php: '8.3'
+        # Cheap early warning for the next PHP.
+        - drupal: '^11'
+          php: '8.4'
+
+    steps:
+    # ── Provision: everything installed up front, before any work happens ─────
+    - name: Checkout module
+      uses: actions/checkout@v7
+      with:
+        path: module
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php }}
+        extensions: mbstring, gd, pdo_sqlite, sqlite3, dom, curl, xml
+        coverage: none
+        tools: composer:v2
+
+    - name: Build a throwaway Drupal
+      env:
+        DRUPAL_VERSION: ${{ matrix.drupal }}
+      run: |
+        composer create-project "drupal/recommended-project:$DRUPAL_VERSION" "$DRUPAL_DIR" \
+          --no-interaction --no-progress --no-install
+        cd "$DRUPAL_DIR"
+        composer config --no-plugins allow-plugins.composer/installers true
+        composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
+        composer config --no-plugins allow-plugins.drupal/core-project-message true
+        composer config --no-plugins allow-plugins.phpstan/extension-installer true
+        composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+        composer config minimum-stability dev
+        composer config prefer-stable true
+
+    # The module under test is wired in as a path repo, so composer installs the
+    # working tree rather than a published release.
+    - name: Require the module from the working tree
+      run: |
+        cd "$DRUPAL_DIR"
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key \
+          --no-interaction --no-progress
+        composer require drupal/core-dev --dev --no-interaction --no-progress
+
+    # ── Act: everything is provisioned; now run the suite ────────────────────
+    - name: Run PHPUnit
+      run: |
+        cd "$DRUPAL_DIR"
+        ./vendor/bin/phpunit \
+          -c "web/modules/contrib/$MODULE/phpunit.xml.dist" \
+          --log-junit junit.xml \
+          --testdox
+
+    - name: Publish test results
+      if: always()
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        check_name: PHPUnit results PHP ${{ matrix.php }}
+        files: /tmp/drupal/junit.xml
+        comment_mode: always

@@ -1,0 +1,18 @@
+# API defaults for the n8n provider.
+#
+# Deliberately almost empty, and that is the point. Every knob a normal provider
+# exposes here — temperature, max tokens, top_p — belongs to the model, and the
+# model lives inside your n8n agent. Adding them would create a Drupal setting
+# that silently does nothing. See README, "Settings that intentionally do nothing".
+chat:
+  input:
+    description: 'The message to send to the n8n agent. Only the newest message is sent — the agent''s own memory node holds the history.'
+    type: string
+    default: 'Introduce yourself!'
+    required: true
+  authentication:
+    description: 'The n8n API key, resolved from the Key module via the shared n8n connection.'
+    type: string
+    default: ''
+    required: true
+  configuration: {}

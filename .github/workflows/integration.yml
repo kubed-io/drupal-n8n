@@ -1,0 +1,167 @@
+name: 🔗 Integration
+
+# The real wiring the unit suite mocks out: a REAL Drupal with this module
+# installed, talking to a REAL n8n, with Behat asserting both sides.
+#
+# n8n runs as a GHA services: container — fresh per job, so it is ephemeral by
+# construction and there is nothing to tear down. The owner is pre-provisioned via
+# env so there is no signup wizard; the API key is minted at run time because n8n
+# has no headless mint. Both recipes are ported from the sibling nextcloud-n8n
+# project. See saga/Chapter_1_Packing_the_Van.md §7.1.
+#
+# Fixtures are LLM-FREE by design — Chat Trigger → Code → responseMode: lastNode.
+# We test the transport, not the intelligence, which is also what keeps this job
+# free, fast and deterministic. Never add an LLM-backed fixture. See §7.2.
+
+on:
+  pull_request:
+    branches:
+    - main
+    paths:
+    - .github/workflows/integration.yml
+    - src/**
+    - modules/**
+    - features/**
+    - tests/integration/**
+    - '*.yml'
+    - composer.json
+  push:
+    branches:
+    - main
+
+permissions:
+  contents: read
+  # Behat results → sticky PR comment + check run, same reporter as the unit suite.
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+# Static values here so `run:` steps are pure bash reading $VARS — never inline
+# GitHub templating. See CONTRIBUTING.md "Workflow authoring conventions".
+env:
+  MODULE: n8n
+  DRUPAL_DIR: /tmp/drupal
+  N8N_URL: http://localhost:5678
+  N8N_OWNER_EMAIL: owner@example.com
+  N8N_OWNER_PASSWORD: n8npassword
+
+jobs:
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      # n8n with the instance owner pre-provisioned via env, so there is no setup
+      # wizard to click through. The password must be a BCRYPT HASH, not
+      # plaintext — n8n fails to provision the owner quietly otherwise.
+      # The hash below is for "n8npassword"; regenerate with:
+      #   php -r 'echo password_hash("n8npassword", PASSWORD_BCRYPT), PHP_EOL;'
+      n8n:
+        image: docker.n8n.io/n8nio/n8n:latest
+        ports:
+        - 5678:5678
+        env:
+          N8N_INSTANCE_OWNER_MANAGED_BY_ENV: "true"
+          N8N_INSTANCE_OWNER_EMAIL: owner@example.com
+          N8N_INSTANCE_OWNER_FIRST_NAME: Test
+          N8N_INSTANCE_OWNER_LAST_NAME: Owner
+          N8N_INSTANCE_OWNER_PASSWORD_HASH: $2y$12$M/JhYL51spvMK3uMO8iraOSbWKqIkLldhcaA8Y2TzPAhZVQdV0Tju
+          N8N_DIAGNOSTICS_ENABLED: "false"
+          N8N_HIRING_BANNER_ENABLED: "false"
+        options: >-
+          --health-cmd "wget -q -O - http://localhost:5678/healthz | grep -q ok"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 40
+          --health-start-period 20s
+
+    steps:
+    # ── Provision: install everything up front, before any work runs ──────────
+    - name: Checkout module
+      uses: actions/checkout@v7
+      with:
+        path: module
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        # Match the production pod.
+        php-version: '8.3'
+        extensions: mbstring, gd, pdo_sqlite, sqlite3, dom, curl, xml
+        coverage: none
+        tools: composer:v2
+
+    - name: Build a Drupal with the module installed
+      run: |
+        composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
+          --no-interaction --no-progress --no-install
+        cd "$DRUPAL_DIR"
+        composer config --no-plugins allow-plugins.composer/installers true
+        composer config --no-plugins allow-plugins.drupal/core-composer-scaffold true
+        composer config --no-plugins allow-plugins.drupal/core-project-message true
+        composer config minimum-stability dev
+        composer config prefer-stable true
+        composer config repositories.module path "$GITHUB_WORKSPACE/module"
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
+          --no-interaction --no-progress
+
+    - name: Install Behat deps
+      working-directory: module/tests/integration
+      run: composer install --prefer-dist --no-progress
+
+    - name: Install Drupal on SQLite
+      run: |
+        cd "$DRUPAL_DIR"
+        ./vendor/bin/drush site:install standard \
+          --db-url=sqlite://sites/default/files/.sqlite \
+          --account-name=admin --account-pass=admin \
+          --site-name=n8n-integration -y
+        ./vendor/bin/drush en "$MODULE" ai_provider_n8n -y
+
+    # ── Readiness gate ───────────────────────────────────────────────────────
+    - name: Wait for n8n
+      run: |
+        for i in $(seq 1 40); do
+          if curl -fsS "$N8N_URL/healthz" | grep -q ok; then echo "n8n healthy"; exit 0; fi
+          sleep 3
+        done
+        echo "n8n did not become healthy" >&2; exit 1
+
+    # ── Act: everything is provisioned and ready ─────────────────────────────
+    # PREREQUISITE, not a feature: obtain a valid n8n API key so scenarios can act
+    # as an admin who already has one. Fails the job loudly rather than running the
+    # whole suite against a 401. The key is masked and never stored.
+    - name: Mint n8n API key
+      id: n8n_key
+      run: |
+        key="$(bash "$GITHUB_WORKSPACE/module/tests/integration/bin/mint-n8n-key.sh")"
+        if [ -z "$key" ]; then echo "no API key minted" >&2; exit 1; fi
+        echo "::add-mask::$key"
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+        echo "✅ n8n API key obtained, length ${#key}"
+
+    - name: Run Behat
+      working-directory: module/tests/integration
+      env:
+        DRUSH: /tmp/drupal/vendor/bin/drush
+        DRUPAL_BASE_URL: http://localhost:8080
+        N8N_API_KEY: ${{ steps.n8n_key.outputs.key }}
+      run: vendor/bin/behat --config behat.dist.yml
+
+    - name: Publish integration results
+      if: always()
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        check_name: Integration test results
+        files: module/tests/integration/junit/*.xml
+        comment_mode: always
+
+    - name: Drupal log on failure
+      if: failure()
+      run: |
+        cd "$DRUPAL_DIR"
+        ./vendor/bin/drush watchdog:show --count=50 --extended || echo "no watchdog"

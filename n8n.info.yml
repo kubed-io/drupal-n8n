@@ -1,0 +1,8 @@
+name: n8n
+type: module
+description: 'The connection to an n8n instance. Shared by every n8n submodule; ships no features of its own.'
+package: n8n
+core_version_requirement: ^10.3 || ^11
+configure: n8n.settings_form
+dependencies:
+- key:key

@@ -1,0 +1,9 @@
+services:
+
+  n8n.client:
+    class: Drupal\n8n\N8nClient
+    arguments:
+    - '@http_client'
+    - '@config.factory'
+    - '@key.repository'
+    - '@logger.factory'

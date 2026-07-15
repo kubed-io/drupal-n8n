@@ -1,0 +1,13 @@
+n8n.settings:
+  type: config_object
+  label: 'n8n settings'
+  mapping:
+    base_url:
+      type: uri
+      label: 'Base URL of the n8n instance'
+    api_key:
+      type: string
+      label: 'Machine name of the Key entity holding the n8n API key'
+    timeout:
+      type: integer
+      label: 'Request timeout in seconds'

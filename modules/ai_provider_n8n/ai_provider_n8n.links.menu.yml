@@ -1,0 +1,8 @@
+# The n8n connection is shared with every other n8n submodule, so it lives in the
+# base module rather than here. This link surfaces it in the AI providers list so
+# an admin who is configuring providers can still find it where they expect.
+ai_provider_n8n.settings_menu:
+  title: 'n8n Authentication'
+  description: 'Connect this site to an n8n instance.'
+  route_name: n8n.settings_form
+  parent: ai.admin_providers
