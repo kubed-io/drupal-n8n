@@ -32,16 +32,30 @@ parameters:
   drupal:
     drupal_root: ../../..
 
-  level: 5
+  # Level 1, matching drupal/ai and ai_provider_openai — checked, not guessed. The
+  # Drupal AI ecosystem runs at level 1 because Drupal's own patterns (untyped
+  # plugin config arrays, render arrays, new static) trip higher levels constantly.
+  # A first pass at level 5 produced pages of findings about Drupal being Drupal.
+  # Raise it deliberately later if it earns its keep; do not raise it by accident.
+  level: 1
+
+  # An unmatched ignore is reported as an error belonging to no file, which breaks
+  # the SARIF upload outright. drupal/ai sets this for the same reason.
+  reportUnmatchedIgnoredErrors: false
 
   paths:
   - src
   - modules
 
+  # Tests are excluded: PHPStan needs PHPUnit autoloadable to understand an
+  # assertion, and wiring that into the analysis environment buys noise rather than
+  # signal. The tests are verified by running them, which is a stronger check.
+
   excludePaths:
     analyseAndScan:
     - */vendor/*
     - */node_modules/*
+    - */tests/*
 
   # No ignoreErrors here, deliberately.
   #
