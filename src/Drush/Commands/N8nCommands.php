@@ -6,6 +6,7 @@ namespace Drupal\n8n\Drush\Commands;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\n8n\N8nClient;
+use Drupal\n8n\N8nClientInterface;
 use Drush\Attributes as CLI;
 use Drush\Commands\DrushCommands;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -13,35 +14,30 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Configures and verifies the n8n connection from the command line.
  *
- * These are not a convenience. A deployment lifecycle has to bake the connection
- * with no human at a form, which is why every admin action on the settings page
- * has an equivalent here, and why a broken connection must exit non-zero — that
- * is what lets an install script fail loudly instead of shipping a site that
- * cannot reach n8n.
+ * Not a convenience: a deployment bakes the connection with nobody at a form, so
+ * every admin action has an equivalent here and a broken connection must exit
+ * non-zero — that is what lets an install script stop.
  *
- * The API key is never passed on this command line. `n8n:set-key` takes the
- * machine name of a Key entity, so a secret never lands in shell history or a
- * process list. See SECURITY.md.
+ * @see SECURITY.md#secrets-policy — why set-key takes a Key entity's name
+ * @see features/admin-connection.feature
  *
- * @todo Phase 4 — a `--domain` option. Domain config overrides NEVER apply in
- *   CLI: `drush --uri` does not populate the domain negotiation context, so
- *   ConfigFactory returns global values here no matter what. That means these
- *   commands currently read and write the GLOBAL connection while a site serving
- *   a domain with an override uses a different one. See
- *   saga/Chapter_1_Packing_the_Van.md §9.1 and Phase 4.
+ * @todo Phase 4 — a `--domain` option. Domain overrides NEVER apply in CLI
+ *   (`drush --uri` does not populate the domain context), so these read and write
+ *   the GLOBAL connection while a site serving an overridden domain uses another
+ *   one. See saga §9.1.
  */
 class N8nCommands extends DrushCommands {
 
   /**
    * The constructor.
    *
-   * @param \Drupal\n8n\N8nClient $client
+   * @param \Drupal\n8n\N8nClientInterface $client
    *   The n8n client.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
    *   The config factory.
    */
   public function __construct(
-    protected N8nClient $client,
+    protected N8nClientInterface $client,
     protected ConfigFactoryInterface $configFactory,
   ) {
     parent::__construct();
@@ -90,8 +86,8 @@ class N8nCommands extends DrushCommands {
   #[CLI\Argument(name: 'key_id', description: 'Machine name of a Key entity holding the n8n API key. NOT the key itself.')]
   #[CLI\Usage(name: 'drush n8n:set-key n8n_api_key', description: 'Use the n8n_api_key Key entity.')]
   public function setKey(string $key_id): int {
-    // Fail on a key that does not exist rather than storing a dangling
-    // reference that only breaks later, at chat time, on someone else's watch.
+    // Refuse a dangling reference now, rather than let it break at chat time on
+    // someone else's watch.
     if (!$this->client->keyExists($key_id)) {
       $this->logger()->error(dt('No Key entity named @id. Create one at /admin/config/system/keys first.', ['@id' => $key_id]));
       return self::EXIT_FAILURE;
@@ -118,7 +114,6 @@ class N8nCommands extends DrushCommands {
       return self::EXIT_SUCCESS;
     }
 
-    // Non-zero is the whole point: an install script has to be able to stop.
     $this->logger()->error($result['message']);
     return self::EXIT_FAILURE;
   }

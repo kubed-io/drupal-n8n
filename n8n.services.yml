@@ -1,9 +1,19 @@
 services:
 
+  # Everything in this repo reads the n8n connection through here, so there is
+  # exactly one answer to "where do the URL and key come from?".
   n8n.client:
     class: Drupal\n8n\N8nClient
     arguments:
     - '@http_client'
     - '@config.factory'
     - '@key.repository'
-    - '@logger.factory'
+    - '@logger.channel.n8n'
+    - '@string_translation'
+
+  # A named channel puts n8n's failures on their own filter in the log UI, rather
+  # than making an operator search all of Drupal's.
+  logger.channel.n8n:
+    parent: logger.channel_base
+    arguments:
+    - n8n

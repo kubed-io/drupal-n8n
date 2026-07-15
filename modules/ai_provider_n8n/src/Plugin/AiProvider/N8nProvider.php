@@ -11,40 +11,30 @@ use Drupal\ai\OperationType\Chat\ChatInterface;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai\OperationType\Chat\ChatOutput;
 use Drupal\Core\Config\ImmutableConfig;
+use Drupal\n8n\N8nClient;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Exposes n8n chat agents to Drupal as AI models.
  *
- * The whole idea in one paragraph: each n8n workflow that starts with a Chat
- * Trigger is presented to Drupal as a "model". Picking your agent in an AI
- * Assistant is then the same gesture as picking gpt-4o, and every surface that
- * already speaks to a provider works unchanged.
+ * Three things here are load-bearing; the rest is plumbing.
  *
- * Three things about this class are load-bearing. Read them before editing:
+ * 1. We support `chat` only and declare NO capabilities. That alone keeps n8n out
+ *    of ai_agents, CKEditor AI and field automators, which ask for capability-
+ *    filtered pseudo-operations. It is not a checkbox — it is what the plugin is.
+ * 2. n8n owns the brain, so we ignore the system prompt and configuration Drupal
+ *    hands us.
+ * 3. The connection belongs to the base `n8n` module so a future n8n_webform can
+ *    share it — hence the getConfig() override.
  *
- * 1. We support the `chat` operation and NOTHING else, and we declare NO
- *    capabilities. That is what keeps n8n out of ai_agents, the CKEditor AI
- *    plugins, and field automators — those ask for the `chat_with_tools` /
- *    `chat_with_complex_json` pseudo-operations, which resolve to `chat` filtered
- *    by an AiModelCapability. An n8n agent already did its own tool calling;
- *    handing it to something that wants to drive a raw model means two agents
- *    fighting over one conversation.
+ * @see README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown
+ * @see README.md#settings-that-intentionally-do-nothing
+ * @see features/agent-exclusion.feature
  *
- * 2. n8n owns the brain. The model, the system prompt, the memory and the tools
- *    all live in the n8n workflow. We deliberately IGNORE the system prompt and
- *    the configuration Drupal hands us — see README, "Settings that
- *    intentionally do nothing".
- *
- * 3. The connection is NOT ours. It belongs to the base `n8n` module so the
- *    webform submodule can share it, which is why getConfig() is overridden.
- *
- * @todo Phase 2 — replace the placeholder model list and canned reply with the
- *   real n8n client. This class is currently the Phase 1 "hello world" skeleton:
- *   it proves the plugin is discovered, appears for assistants, is absent for
- *   agents, and renders through the chat block. See
- *   saga/Chapter_1_Packing_the_Van.md, Phase 1.
+ * @todo Phase 2 — swap the placeholder model list and canned reply for the real
+ *   client. This is the Phase 1 skeleton: it proves the plugin is discovered,
+ *   offered to assistants and hidden from agents.
  */
 #[AiProvider(
   id: 'n8n',
@@ -58,9 +48,14 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   protected const PLACEHOLDER_MODEL = 'hello-world';
 
   /**
+   * Reported when only n8n knows the real limit, which is always.
+   */
+  protected const UNKNOWN_TOKEN_LIMIT = 128000;
+
+  /**
    * The n8n client, from the base module.
    *
-   * @var \Drupal\n8n\N8nClient
+   * @var \Drupal\n8n\N8nClientInterface
    */
   protected $client;
 
@@ -76,33 +71,30 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   /**
    * {@inheritdoc}
    *
-   * The connection lives in the base `n8n` module, not here, because the webform
-   * submodule shares it. Without this override the base class would look for
-   * `ai_provider_n8n.settings`, which does not exist.
+   * Without this the base class would look for `ai_provider_n8n.settings`, which
+   * does not exist — the connection is the base module's.
    */
   public function getConfig(): ImmutableConfig {
-    return $this->configFactory->get('n8n.settings');
+    return $this->configFactory->get(N8nClient::CONFIG_NAME);
   }
 
   /**
    * {@inheritdoc}
    */
   public function getSupportedOperationTypes(): array {
-    // Chat, and only chat. See the class docblock, point 1.
     return ['chat'];
   }
 
   /**
    * {@inheritdoc}
    *
-   * NOTE: getSupportedCapabilities() is deliberately NOT overridden. The base
-   * class returns an empty array, which is exactly right — an n8n agent is not a
-   * raw model and offers Drupal no tools, no vision, no JSON mode. Do not
-   * "helpfully" add capabilities here: that is the single change that would let
-   * n8n be selected as an agent brain and quietly misbehave.
+   * getSupportedCapabilities() is deliberately NOT overridden: the base class
+   * returns an empty array, which is the exclusion mechanism. Adding a capability
+   * here is the single change that would let n8n be picked as an agent brain and
+   * quietly misbehave.
    */
   public function getConfiguredModels(?string $operation_type = NULL, array $capabilities = []): array {
-    // Any caller asking for a capability wants a raw model. We are not one.
+    // A caller asking for a capability wants a raw model. We are not one.
     if (!empty($capabilities)) {
       return [];
     }
@@ -121,7 +113,6 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * {@inheritdoc}
    */
   public function isUsable(?string $operation_type = NULL, array $capabilities = []): bool {
-    // Same contract as getConfiguredModels(): capabilities mean "raw model".
     if (!empty($capabilities)) {
       return FALSE;
     }
@@ -138,7 +129,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * {@inheritdoc}
    */
   public function getModelSettings(string $model_id, array $generalConfig = []): array {
-    // The model lives in n8n; there is nothing for Drupal to configure.
+    // The model lives in n8n; nothing here for Drupal to configure.
     return $generalConfig;
   }
 
@@ -146,9 +137,8 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * {@inheritdoc}
    */
   public function setAuthentication(mixed $authentication): void {
-    // The API key is resolved through the Key module by the shared client at call
-    // time, so there is nothing to set here and nothing to hold. Leaving this a
-    // no-op is deliberate: this class must never hold a raw credential.
+    // Deliberate no-op: the shared client resolves the key through the Key module
+    // at call time, and this class must never hold a raw credential.
   }
 
   /**
@@ -169,18 +159,16 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * {@inheritdoc}
    */
   public function getMaxInputTokens(string $model_id): int {
-    // n8n owns the model, so Drupal cannot know its context window. Report a
-    // permissive bound rather than a fake-precise one: the agent, not Drupal, is
-    // what will reject an over-long message.
-    return 128000;
+    // n8n owns the model, so Drupal cannot know its context window. A permissive
+    // bound beats a fake-precise one: the agent rejects an over-long message, not us.
+    return self::UNKNOWN_TOKEN_LIMIT;
   }
 
   /**
    * {@inheritdoc}
    */
   public function getMaxOutputTokens(string $model_id): int {
-    // See getMaxInputTokens().
-    return 128000;
+    return self::UNKNOWN_TOKEN_LIMIT;
   }
 
 }
