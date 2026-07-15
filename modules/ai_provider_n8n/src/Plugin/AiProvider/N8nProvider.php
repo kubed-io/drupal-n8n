@@ -59,6 +59,8 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
 
   /**
    * The n8n client, from the base module.
+   *
+   * @var \Drupal\n8n\N8nClient
    */
   protected $client;
 

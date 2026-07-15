@@ -47,13 +47,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-        # The version the production pod runs. The one that must be green.
-        - drupal: '^11'
-          php: '8.3'
-        # Cheap early warning for the next PHP.
-        - drupal: '^11'
-          php: '8.4'
+        # A PR runs ONLY the production PHP: fast feedback, and one test-result
+        # comment instead of one per version. The full sweep — 8.3, our stated
+        # floor, through 8.5, what the pod actually runs — happens on merge to
+        # main, where latency blocks nobody.
+        #
+        # Consequence, and it matters: "PHPUnit PHP 8.3" never reports on a PR, so
+        # it must NOT be a required status check or every PR would hang waiting
+        # for it. Only "PHPUnit PHP 8.5" is required.
+        php: ${{ fromJSON(github.event_name == 'pull_request' && '["8.5"]' || '["8.3","8.5"]') }}
 
     steps:
     # ── Provision: everything installed up front, before any work happens ─────
@@ -71,10 +73,8 @@ jobs:
         tools: composer:v2
 
     - name: Build a throwaway Drupal
-      env:
-        DRUPAL_VERSION: ${{ matrix.drupal }}
       run: |
-        composer create-project "drupal/recommended-project:$DRUPAL_VERSION" "$DRUPAL_DIR" \
+        composer create-project 'drupal/recommended-project:^11' "$DRUPAL_DIR" \
           --no-interaction --no-progress --no-install
         cd "$DRUPAL_DIR"
         composer config --no-plugins allow-plugins.composer/installers true
@@ -90,10 +90,29 @@ jobs:
     - name: Require the module from the working tree
       run: |
         cd "$DRUPAL_DIR"
-        composer config repositories.module path "$GITHUB_WORKSPACE/module"
+        # symlink:false so the module is COPIED to web/modules/contrib/n8n.
+        # With a symlink, relative paths in phpunit.xml.dist resolve against
+        # the working tree and cannot find core.
+        composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
         composer require "drupal/$MODULE:*" drupal/ai drupal/key \
           --no-interaction --no-progress
-        composer require drupal/core-dev --dev --no-interaction --no-progress
+        # PIN core-dev to the core major. Unconstrained, composer silently
+        # backtracks to drupal/core-dev 8.0.0-beta15 — a Drupal 8-era metapackage
+        # with no dependencies — and you get a green install with no phpunit and a
+        # baffling "./vendor/bin/phpunit: No such file or directory".
+        composer require --dev "drupal/core-dev:^11" -W \
+          --no-interaction --no-progress
+
+    # Fail here, loudly, rather than 20 lines later with exit 127.
+    - name: Verify the test harness installed
+      run: |
+        cd "$DRUPAL_DIR"
+        if [ ! -x ./vendor/bin/phpunit ]; then
+          echo "::error::phpunit was not installed — check the drupal/core-dev constraint"
+          composer show drupal/core-dev || true
+          exit 1
+        fi
+        ./vendor/bin/phpunit --version
 
     # ── Act: everything is provisioned; now run the suite ────────────────────
     - name: Run PHPUnit
@@ -101,7 +120,7 @@ jobs:
         cd "$DRUPAL_DIR"
         ./vendor/bin/phpunit \
           -c "web/modules/contrib/$MODULE/phpunit.xml.dist" \
-          --log-junit junit.xml \
+          --log-junit "$GITHUB_WORKSPACE/junit.xml" \
           --testdox
 
     - name: Publish test results
@@ -109,5 +128,5 @@ jobs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         check_name: PHPUnit results PHP ${{ matrix.php }}
-        files: /tmp/drupal/junit.xml
+        files: junit.xml
         comment_mode: always

@@ -1,0 +1,115 @@
+name: 🧬 Publish Version
+
+# Manual, intentional release — never on merge. A merge lands the change in
+# CHANGELOG's [Unreleased]; this workflow decides that section is now a version.
+#
+# THE CHANGELOG IS THE RELEASE NOTES. duplocloud/version-bump rolls [Unreleased]
+# into a dated `## [vX.Y.Z]` section, commits, tags, and hands the rolled section
+# back as `release-notes` — which is what the GitHub Release body becomes. That is
+# the whole reason pr.yml gates every PR on a changelog entry: without it, a
+# release would ship with empty notes.
+#
+# There is NO version file. A Drupal contrib module carries no version in
+# composer.json or its .info.yml — drupal.org's packaging stamps that at build
+# time — so the GIT TAG IS THE VERSION OF RECORD. Nothing to bump in a feature PR,
+# which is exactly how we want it.
+#
+# Run once with push=false (dry run: computes the next version, changes nothing),
+# then push=true to release.
+#
+# Auth: main is protected by a ruleset requiring signed commits and a PR, so the
+# default GITHUB_TOKEN cannot land the version commit. A GitHub App token can —
+# same pattern as the sibling nextcloud-n8n.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Version to bump to
+        default: patch
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+        - premajor
+        - preminor
+        - prepatch
+      push:
+        description: Push changes and create release
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Validate branch
+      if: inputs.push
+      env:
+        REF: ${{ github.ref_name }}
+      run: |
+        if [ "$REF" != "main" ]; then
+          echo "::error::Releases can only be pushed from main. Current ref: $REF"
+          exit 1
+        fi
+
+    - name: Create GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        client-id: ${{ vars.GH_CLIENT_ID }}
+        private-key: ${{ secrets.GH_APP_KEY }}
+
+    # fetch-depth: 0 because version-bump reads the tag history to compute the
+    # next semver — a shallow clone has no tags and it would start again from 0.
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        token: ${{ steps.app-token.outputs.token }}
+
+    # Rolls CHANGELOG [Unreleased] into a dated version section, commits, tags,
+    # and returns the rolled notes. With push=false it only reports the version it
+    # would cut and touches nothing.
+    - name: Bump version
+      id: bump
+      uses: duplocloud/version-bump@main
+      with:
+        version: ${{ inputs.action }}
+        push: ${{ inputs.push }}
+        token: ${{ steps.app-token.outputs.token }}
+
+    - name: Summarise
+      env:
+        TAG: ${{ steps.bump.outputs.tag }}
+        PUSHED: ${{ inputs.push }}
+      run: |
+        {
+          echo "## $TAG"
+          if [ "$PUSHED" = "true" ]; then
+            echo "Tagged and released."
+          else
+            echo "Dry run — nothing was pushed. Re-run with push=true to release."
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    # The release body is the changelog section version-bump just rolled. Docs,
+    # tests, and release notes therefore cannot drift: they are the same text.
+    - name: Create GitHub Release
+      if: inputs.push
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        TAG: ${{ steps.bump.outputs.tag }}
+        NOTES: ${{ steps.bump.outputs.release-notes }}
+      run: |
+        gh release create "$TAG" \
+          --title "$TAG" \
+          --notes "$NOTES" \
+          --repo "$GITHUB_REPOSITORY"

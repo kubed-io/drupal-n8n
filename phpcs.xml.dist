@@ -24,4 +24,19 @@
 
   <rule ref="Drupal"/>
   <rule ref="DrupalPractice"/>
+
+  <!--
+    Known, declared debt: Drupal.Files.LineLength.TooLong fires across this repo
+    because the comments explain *why* the code is the way it is, and that prose
+    runs past 80 characters. CI reports these but does not gate on them; see the
+    ignore_warnings_on_exit runtime flag in quality.yml.
+
+    This is a licence to keep existing comments, NOT to write new long ones. Wrap
+    at 80. The rule is deliberately left ON so the count stays visible and can be
+    paid down, rather than excluded and forgotten.
+
+    Note for editors: XML comments cannot contain a double hyphen, so CLI flags
+    are named in prose here rather than written out. phpcs rejects the whole
+    ruleset with exit 16 if you forget.
+  -->
 </ruleset>
