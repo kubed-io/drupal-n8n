@@ -134,10 +134,13 @@ jobs:
           --memory-limit=512M \
           --no-progress > "$GITHUB_WORKSPACE/phpstan.sarif" || echo "found=true" >> "$GITHUB_OUTPUT"
 
-    # Always upload, even when PHPStan found something — an empty Security tab on a
-    # failing run would be worse than useless.
+    # Upload even when PHPStan FOUND something — an empty Security tab on a failing
+    # run would be worse than useless. But not when PHPStan never RAN: an earlier
+    # step failing (phpcs exits 2 on errors, and bash -e stops the job) would
+    # otherwise add a second, misleading "Path does not exist: phpstan.sarif" error
+    # pointing at the scanner instead of at the real failure.
     - name: Upload PHPStan SARIF to code scanning
-      if: always()
+      if: always() && hashFiles('phpstan.sarif') != ''
       uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: phpstan.sarif
