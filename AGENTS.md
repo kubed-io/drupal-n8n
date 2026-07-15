@@ -182,15 +182,15 @@ spec → code → unit/kernel test → integration step → docs + changelog.
 
 ---
 
-## Working with Kelly
+## Working with the maintainer
 
-- **He will grill you, and he is usually right.** When he is not, **push back with
-  evidence** — the ecosystem's own source, not assertion. He is explicit that he
-  wants the correction rather than compliance.
+- **Expect to be grilled, and assume the review is right.** When it is not, **push
+  back with evidence** — the ecosystem's own source, not assertion. A correction is
+  wanted more than compliance.
 - **Scope creep is this repo's failure mode.** Your instinct is to help by adding
   options; this module's instinct is to have fewer. The best PR here usually deletes
   something.
 - **Never declare a chapter finished.** Scope grows as edge cases surface — that is
-  the process working. Only Kelly closes a chapter.
+  the process working. Only the maintainer closes a chapter.
 - **Say when you are unsure.** A flagged unknown beats a confident wrong answer;
   saga §9 is a list of things we deliberately admitted we had not proven.

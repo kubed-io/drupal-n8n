@@ -7,6 +7,8 @@
 > its own toolbelt — answering in a Drupal chat box like it lived there all
 > along. **The van** is this repo. **The passengers** are the submodules.
 > **The road** is Drupal's AI plumbing, and it turns out to be paved.
+> **Dr K** is the one who heard about the smoothie man, owns the van, and decides
+> when we have actually arrived.
 >
 > This chapter is everything before we drive. **Not one sip of smoothie** — we
 > don't taste anything until Chapter 2. What we do here is get a van that starts,
@@ -26,13 +28,13 @@
 >
 > ```
 > setup/n8n.php: Key 'n8n_api_key' already current.
-> + drush n8n:set-url 'http://n8n.flow.svc.cluster.local'
->  [success] n8n base URL set to http://n8n.flow.svc.cluster.local
+> + drush n8n:set-url 'http://n8n.internal:5678'
+>  [success] n8n base URL set to http://n8n.internal:5678
 > + drush n8n:set-key 'n8n_api_key'
 >  [success] n8n API key will be read from the n8n_api_key key.
 > + drush n8n:test
 >  [success] Connected to n8n.
-> setup/n8n.php: connected to n8n at http://n8n.flow.svc.cluster.local.
+> setup/n8n.php: connected to n8n at http://n8n.internal:5678.
 > ```
 >
 > A real Drupal, a real 1Password-sourced read-only key, a real n8n. Test
@@ -77,7 +79,7 @@ What is **left** — see §8:
 
 > **This chapter does not close on a checklist.** The scope grows as we find things —
 > domain-awareness (§8, Phase 4) did not exist as an idea until a stray button on the
-> settings form led to it. That is the process working, not scope creep. **Only Kelly
+> settings form led to it. That is the process working, not scope creep. **Only Dr K
 > ends a chapter.**
 
 ---
@@ -173,34 +175,38 @@ own a translation layer and a dropdown entry. That's the whole product.
 Everything in this section was read from source or the live cluster on
 **2026-07-15**. Treat it as fact and do not spend a second re-litigating it.
 
-### 2.1 The cluster
-- **Drupal**: multisite on `wodby/drupal:11`, ns `cloud`, image `kubed/drupal:11`.
-  Contrib installed by `hooks/install.sh` — relevant lines:
-  `drupal/ai`, `drupal/ai_agents`, `drupal/ai_provider_openai`,
-  `drupal/ai_provider_anthropic`, `drupal/gemini_provider`, `drupal/key`,
-  `drupal/mcp:^1.0`, `drupal/search_api`, `drupal/ai_vdb_provider_postgres`,
-  **`drupal/webform:^6.3@dev`**, **`drupal/eca:^3`**, `drupal/bpmn_io:^3`.
-- **`ai_chatbot` + `ai_assistant_api` are already in the image** — they ship
-  inside `drupal/ai` as submodules. The chat UI needs **no new contrib**, only
-  `drush en`. Dependency chain: `ai_chatbot` → `ai_assistant_api` → `ai`.
-- **n8n**: ns `flow`, `https://n8n.kellyferrone.com`, API key in vault at
-  `N8N/API/key`. Has a dedicated **`n8n-chat` Postgres database**
-  (`apps/n8n/components/db/chat-db.yaml`) backing the Postgres Chat Memory node.
-- **A canonical agent already exists** — `N8N Workflow Agent` (`ttCS4UYKg9Q2RSsy`):
-  `Chat Trigger → Config → AI Agent`, with `Anthropic Chat Model`,
-  `Postgres Chat Memory`, and an `n8n MCP` tool. Others tagged `agent`:
-  `Homelab Project Manager`, `Observer Agent`, `Chat With inventory`, `Movie Buff`.
-  **These are the fixtures.** No new n8n build needed to start.
-- **Drupal MCP is live** at `/mcp/post` with `ai_agent_calling`, `jsonapi`,
-  `content`, `ai_function_calling` plugins enabled, and **`ai_search_rag_search`
-  is exposed as a tool**. Auth is `Basic <base64-of-bare-token>` (no colon —
-  see `apps/drupal/README.md`; `Bearer` is rejected).
+### 2.1 The environment this was verified against
+
+Facts about **versions and capabilities**, not about anyone's instance — the
+findings in §2.2 are what matter and they are true of any Drupal running these
+modules.
+
+- **Drupal 11.4.2 on PHP 8.5**, `wodby/drupal:11` base. Contrib already present and
+  relevant: `drupal/ai`, `ai_agents`, `ai_provider_openai`, `ai_provider_anthropic`,
+  `gemini_provider`, `key`, `mcp`, `search_api`, `ai_vdb_provider_postgres`,
+  `webform`, `eca`, `domain`.
+- **`ai_chatbot` + `ai_assistant_api` ship INSIDE `drupal/ai`** as submodules. The
+  chat UI needs **no new contrib**, only `drush en`. Chain:
+  `ai_chatbot` → `ai_assistant_api` → `ai`.
+- **n8n 1.x** with a chat-trigger workflow available, and a Postgres Chat Memory
+  node backed by its own database.
+- **Drupal's MCP server can be live** at `/mcp/post` with `ai_agent_calling`,
+  `jsonapi`, `content` and `ai_function_calling` enabled, exposing
+  `ai_search_rag_search` as a tool. That is what makes the n8n → Drupal direction
+  free (§4). Auth is `Basic <base64-of-bare-token>` — no colon, and `Bearer` is
+  rejected.
+
+> **Fixtures are NOT anyone's real workflows.** An early draft of this chapter
+> pointed at existing agents on a live instance and called them the fixtures. That
+> was wrong twice over: it coupled the suite to one person's n8n, and a real agent
+> needs an LLM credential CI must not have. The tests own their fixtures, and they
+> are LLM-free — see §7.2.
 
 ### 2.2 Drupal AI internals — the four findings that define the design
 
 **(a) Assistant ≠ Agent, and the assistant is what we want.**
 The `ai_assistant` config entity (`ai_assistant_api.schema.yml`) carries exactly
-the fields Kelly spotted in the UI: `llm_provider`, `llm_model`,
+the fields Dr K spotted in the UI: `llm_provider`, `llm_model`,
 `llm_configuration` (the "Provider Configuration" block), plus `system_prompt`,
 `pre_action_prompt`, `instructions`, `allow_history`, `history_context_length`,
 `actions_enabled`, `use_function_calling`, `roles`, and one optional `ai_agent`.
@@ -237,7 +243,7 @@ Meanwhile the **assistant's** dropdown is built by
 
 > **Therefore:** a provider that supports `chat` and declines the `ChatTools`
 > capability is **visible to Assistants and invisible to Agents**, through the
-> framework's own mechanism. Kelly's requirement — "block the n8n provider from
+> framework's own mechanism. Dr K's requirement — "block the n8n provider from
 > use in the agents" — costs **zero lines**. It is a `return FALSE`.
 
 **(c) There is a clean session bridge, and it needs no core changes.**
@@ -364,9 +370,9 @@ Count the "we write nothing" rows. That is the thesis of the whole project.
 ```
 
 The middle line matters and is easy to miss: **n8n → Drupal already works
-today.** Your `N8N Workflow Agent` carries an MCP Client Tool node; point it at
-`https://drupal.kellyferrone.com/mcp/post` and the agent can already drive
-Drupal's *agents*, JSON:API, content, and RAG search. Kelly's requirement —
+today.** Your a chat-trigger workflow carries an MCP Client Tool node; point it at
+`https://your-site/mcp/post` and the agent can already drive
+Drupal's *agents*, JSON:API, content, and RAG search. Dr K's requirement —
 "n8n agents would be able to use the drupal agents async from the drupal mcp
 server" — **is already satisfied by deployed infrastructure.** It needs a config
 line, not a module.
@@ -380,8 +386,8 @@ So the only missing direction is the first one. That's Chapter 1.
 ### Fork A — What is a "model"?
 - **A1. One model per chat-trigger workflow** *(recommended)*: `getConfiguredModels()`
   lists n8n workflows, filters to those containing a `chatTrigger`, returns
-  `{workflowId: name}`. Kelly's agents appear by name next to `gpt-4o`.
-  - ➕ Exactly the mental model Kelly asked for. ➖ Needs an API call; must cache.
+  `{workflowId: name}`. Dr K's agents appear by name next to `gpt-4o`.
+  - ➕ Exactly the mental model Dr K asked for. ➖ Needs an API call; must cache.
 - **A2. One model, workflow chosen in settings**: single "n8n" model; the target
   workflow is a config value.
   - ➕ No API dependency. ➖ Defeats the point — one agent per site.
@@ -411,7 +417,7 @@ So the only missing direction is the first one. That's Chapter 1.
   has its own.
   - ➕ Honest; keeps n8n authoritative. ➖ Drupal's assistant prompt fields do nothing → **must be documented loudly**.
 - **D2. Forward it** as an extra field to n8n and let the workflow decide.
-  - ➕ Kelly's "maybe we can just use that info" idea. ➖ Only useful if the user's agent reads it; risks two prompts fighting.
+  - ➕ Dr K's "maybe we can just use that info" idea. ➖ Only useful if the user's agent reads it; risks two prompts fighting.
 - **D3. Forward it only when the user opts in**, per model.
   - Probably where we land eventually. **Not in the POC.**
 
@@ -461,7 +467,7 @@ publish.**
 
 ## 7. The map is the spec (TDD, and the README drives the UX)
 
-Kelly's call, and it inverts the usual order: **the `.feature` files and the
+Dr K's call, and it inverts the usual order: **the `.feature` files and the
 README are written first and are the requirements.** Code exists to make them
 true. This is lifted straight from `nextcloud-n8n`, where "the `.feature` files
 *are* the requirements" and the README links each feature to its executable spec.
@@ -561,7 +567,7 @@ we care about: `{action, sessionId, chatInput}` in, `{output}` out. Planned fixt
 | `inactive-agent` | chat trigger, left inactive → proves the active filter |
 
 > **Consequence for the spec — flagged, not hidden.** `session-memory.feature`'s
-> *"the assistant replies with an answer mentioning Kelly"* tests **n8n's memory
+> *"the assistant replies with an answer mentioning Dr K"* tests **n8n's memory
 > node**, not our module. Our real contract is *"both messages reached n8n with the
 > same session id"* — which `echo-agent` proves exactly. That scenario should be
 > reframed or tagged `@todo` when the steps are written. **Don't build an
@@ -636,7 +642,7 @@ The opening feature set (each becomes `features/*.feature`):
 
 ## 8. Phased delivery (prove each step before the next)
 
-Kelly: *"I want to go step by step and prove things before each step."* Each phase
+Dr K: *"I want to go step by step and prove things before each step."* Each phase
 ends on a **falsifiable** exit criterion — something that can be shown false, not a
 feeling. Status is current as of 2026-07-15.
 
@@ -726,7 +732,7 @@ to an agent yet. That is deliberate — see §8.5.
     them, that the key travels as `X-N8N-API-KEY` and not `Authorization`, that the
     timeout reaches the transport, that an unconfigured client makes no request.
   - **Live on the cluster**: `apps/drupal` ships the module, pulls the key from
-    `op://Homelab/Drupal Admin/N8N/api_key`, and the install Job **verifies** the
+    `the vault path in the site YAML`, and the install Job **verifies** the
     connection. Test connection is green in the UI.
 - **Exit — 3 of 4:**
   1. ✅ Unit tests green, including every error path.
@@ -746,7 +752,7 @@ to an agent yet. That is deliberate — see §8.5.
 - **Decides:** the admin-screen house style — now set.
 
 ### Phase 4 — The same thing, per domain ☐ **FOUND MID-CHAPTER**
-- **How this got here:** Kelly asked what an "Enable/Remove domain configuration"
+- **How this got here:** Dr K asked what an "Enable/Remove domain configuration"
   button on our settings form was. It is `domain_config_ui`, site-wide, nothing to do
   with us — and pulling the thread found a real trap. **The scope of this chapter grew
   because we looked.** That is the process working.
@@ -787,7 +793,7 @@ to an agent yet. That is deliberate — see §8.5.
 ### §8.5 — Why the POC moved out of this chapter
 
 The original plan had **Phase 2 — First sip**: one real chat round-trip, before the
-CI. Kelly re-scoped it, and the reasoning is worth keeping.
+CI. Dr K re-scoped it, and the reasoning is worth keeping.
 
 A POC proves the *idea*. We already proved the idea — the part that could have been
 false was "will Drupal let n8n be an assistant and not an agent", and §2.2b answered
@@ -870,7 +876,7 @@ be `domain_config_ui`, site-wide, nothing to do with us. What it led to:
 | Does `drush --uri` help? | **No** — `domainId: NULL` with and without it | proven both ways |
 | Which service gates it? | `domain.negotiation_context` — **not** `domain.negotiator` | reading `loadOverrides()` |
 
-That last row explains a probe that showed `active domain: bikes` and
+That last row explains a probe that showed an active domain and
 `overridden? false` at the same time: two different services, and only one of them
 gates config.
 
@@ -886,7 +892,7 @@ you are driving it with its own API before believing it.
 
 ## 10. Verdict: effort & maintenance
 
-Kelly's framing — *"you seem to think stuff like this is easy but it will
+Dr K's framing — *"you seem to think stuff like this is easy but it will
 probably take a week or two"* — is the right prior, and the research mostly
 supports it, though not evenly:
 
@@ -912,10 +918,10 @@ difficulty — it's scope creep dressed up as helpfulness.
 
 ## 11. Where the work stands
 
-**This is not a closure checklist.** A chapter ends when Kelly says it ends.
+**This is not a closure checklist.** A chapter ends when Dr K says it ends.
 
 We are at the door with our hand on the latch, and we keep going back inside. Phase 4
-is *"wait — does the spare key work?"* — it exists because Kelly pointed at a button
+is *"wait — does the spare key work?"* — it exists because Dr K pointed at a button
 nobody had looked at. There will be more, and each one will feel like a delay right up
 until the moment it would have been a breakdown at 2am on a hard shoulder with no
 signal.
@@ -926,7 +932,7 @@ whole point.
 
 Standing, not closing:
 
-1. ✅ The README and the `.feature` files describe a product Kelly recognises.
+1. ✅ The README and the `.feature` files describe a product Dr K recognises.
 2. ✅ `n8n` is in the Assistant provider dropdown and **absent** from the agent one —
    proven on the live cluster, next to the real openai provider.
 3. ✅ The repo is public, CI is green, and every gate has been proven by watching it
@@ -1000,5 +1006,5 @@ start with `<?php` or require silently echoes it at you.
 
 **Left on the live site** from Phase 1's proof: modules `n8n` + `ai_provider_n8n`
 enabled, a dummy Key entity `n8n_dev_key`, and `n8n.settings` pointed at
-`http://n8n.flow.svc.cluster.local`. Clean up with `./dev.sh remove` when it stops
+`http://n8n.internal:5678`. Clean up with `./dev.sh remove` when it stops
 being useful.
