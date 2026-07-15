@@ -83,15 +83,20 @@ jobs:
           --no-interaction --no-progress
 
     # ── Act ──────────────────────────────────────────────────────────────────
+    # Audit from the Drupal root, not the module. A Drupal contrib module ships no
+    # composer.lock by design — the *site* owns dependency resolution — so there is
+    # nothing to audit in module/ ("No installed packages found"). The site we just
+    # built has a real lock covering our dependencies, and that is the tree an
+    # operator actually installs.
     - name: Audit composer dependencies
-      working-directory: module
       run: |
+        cd "$DRUPAL_DIR"
         echo "## composer audit" >> "$GITHUB_STEP_SUMMARY"
-        if composer audit --format=plain --no-dev | tee audit.txt; then
+        if composer audit --format=plain --locked | tee audit.txt; then
           echo "✅ No advisories" >> "$GITHUB_STEP_SUMMARY"
         else
           status=$?
-          { echo '```'; cat audit.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '```'; tail -40 audit.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
         fi
 
@@ -132,9 +137,19 @@ jobs:
         sarif_file: phpstan.sarif
         category: phpstan
 
+    # SARIF is machine-readable, which means a failing run says nothing useful in
+    # the log. Re-run with a human format so the findings are right here — PHPStan
+    # caches, so this costs a second — then fail.
     - name: Fail on PHPStan findings
       if: steps.phpstan.outputs.found == 'true'
       run: |
+        cd "$DRUPAL_DIR"
         echo "## PHPStan found issues" >> "$GITHUB_STEP_SUMMARY"
-        echo "See the annotations on this PR, or Security → Code scanning." >> "$GITHUB_STEP_SUMMARY"
+        ./vendor/bin/phpstan analyse \
+          --configuration="web/modules/contrib/$MODULE/phpstan.neon" \
+          --error-format=table \
+          --memory-limit=512M \
+          --no-progress | tee /tmp/phpstan.txt || true
+        { echo '```'; tail -60 /tmp/phpstan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        echo "Also in Security → Code scanning, and inline on the PR." >> "$GITHUB_STEP_SUMMARY"
         exit 1
