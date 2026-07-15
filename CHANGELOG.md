@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-07-15
+
 Nothing has shipped yet. The connection is real — install it, set a URL and a key,
 and Test connection works — but no agent is behind it: `chat` returns a
 placeholder. Chatting, model discovery and the session bridge are specified in
