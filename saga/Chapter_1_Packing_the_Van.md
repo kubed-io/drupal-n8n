@@ -8,9 +8,77 @@
 > along. **The van** is this repo. **The passengers** are the submodules.
 > **The road** is Drupal's AI plumbing, and it turns out to be paved.
 >
-> This chapter is everything before we drive: the map, the van starting, one
-> sip to prove the smoothie is real, and then making the van roadworthy enough
-> that other people would get in it.
+> This chapter is everything before we drive. **Not one sip of smoothie** — we
+> don't taste anything until Chapter 2. What we do here is get a van that starts,
+> that other people would climb into, and that knows where n8n lives.
+
+---
+
+## Where we are — 2026-07-15
+
+**The repo is real and green.** [github.com/kubed-io/drupal-n8n](https://github.com/kubed-io/drupal-n8n),
+GPL-2.0-or-later, main gated by a ruleset, four PRs merged.
+
+What is **done**:
+
+- **The spec** — 27 Gherkin scenarios across 8 files, keyed to LLM-free fixtures
+  the tests own. The README describes the product as a user meets it. Both were
+  written before a line of PHP.
+- **The skeleton installs, and the thesis is proven on the live cluster.** Pushed
+  into the running Drupal pod with `./dev.sh`, against the real `ai` module and the
+  real `openai` provider:
+  ```
+  ASSISTANT dropdown(chat):    ["n8n","openai"]
+  AGENT providers(chat+tools): ["openai"]
+  ```
+  n8n is offered to assistants and invisible to agents — §2.2b, working, for zero
+  lines of code. `getSupportedCapabilities()` returning `[]` **is** the mechanism;
+  the correct implementation was *not overriding it*.
+- **The first-class project** — PHPUnit (8.3 floor + 8.5 production), Drupal coding
+  standards, PHPStan as the PHP code scanner via SARIF, Behat against an ephemeral
+  n8n, signed commits, required checks, Dependabot, a release workflow. All proven
+  by watching each one fail and then pass.
+
+What is **left before this chapter closes** — see §8:
+
+> **The connection, end to end.** An admin sets a URL, picks a key, clicks **Test
+> connection**, and gets a real answer from a real n8n — with unit tests and the
+> `admin-connection` feature running live in the pipeline. That is the whole
+> remaining scope.
+
+**No chat. No model discovery. No session bridge.** Those are Chapter 2.
+
+---
+
+## Why this chapter looks nothing like the sibling's Chapter 1
+
+`nextcloud-n8n` went: Chapter 1 *make it work*, Chapter 2 *make it a real project*.
+We inverted that on purpose, and it is the single biggest structural decision here.
+
+That saga's Chapter 1 was **discovery** — nobody knew what the ownership split was,
+whether external storage was viable, how Nextcloud metadata behaved. The project had
+to exist before anyone could say what it was. Chapter 2 then paid the tax:
+retrofitting CI, tests, docs and a release flow onto code that already worked.
+
+We are not in that position. **We inherited the patterns**: the ownership split, the
+saga form, spec-as-gherkin, the ephemeral-n8n recipe, the workflow conventions, the
+changelog contract, even `mint-n8n-key.sh` verbatim. Discovery here was hours of
+reading `drupal/ai`, not months of building.
+
+So Chapter 1 folds Chapter 2's entire arc **up front**, and the payoff is
+compounding rather than theoretical:
+
+| | `nextcloud-n8n` | `drupal-n8n` |
+|---|---|---|
+| Ch1 | make it work | **spec + skeleton + the whole first-class project** |
+| Ch2 | retrofit the project onto working code | **write the logic, into a finished harness** |
+| Tests arrive | after the code, as a rescue | **before the code, as the requirement** |
+| CI arrives | once there's something to protect | **before there's anything to break** |
+
+The consequence for Chapter 2 is the point: **every line of real logic lands into a
+repo that already has a spec to satisfy, a scanner watching, an ephemeral n8n to
+test against, and a release button.** No side quests. That is what this chapter is
+buying, and it is why the smoothie can wait.
 
 ---
 
@@ -536,84 +604,139 @@ The opening feature set (each becomes `features/*.feature`):
 
 ## 8. Phased delivery (prove each step before the next)
 
-Kelly: *"I want to go step by step and prove things before each step."* Each
-phase ends on a **falsifiable** exit criterion. Chapter 2's whole "first-class
-project" arc is folded in here as Phase 3 — we already paid for those lessons on
-`nextcloud-n8n` and don't need to rediscover them.
+Kelly: *"I want to go step by step and prove things before each step."* Each phase
+ends on a **falsifiable** exit criterion — something that can be shown false, not a
+feeling. Status is current as of 2026-07-15.
 
-### Phase 0 — The map *(risk: none — it's writing)*
+**The chapter's scope, restated:** this chapter ends at **a production-quality repo
+whose only feature is registering an n8n connection and testing it.** Nothing talks
+to an agent yet. That is deliberate — see §8.5.
+
+### Phase 0 — The map ✅ **DONE**
 - **Goal:** the spec exists before the code.
-- **Scope:** `README.md` (UX, use cases, functional requirements) + the
-  `features/*.feature` set from §7. No PHP.
-- **Exit:** Kelly reads the README and recognises the product he asked for.
-- **Depends on:** this chapter.
+- **Delivered:** `README.md` written as though the module ships, including the
+  "Settings that intentionally do nothing" table. 27 scenarios across 8
+  `.feature` files, pruned from a first draft of 54 — half the original set were
+  guesses, and one ("two assistants can use two different agents") was testing that
+  two is more than one. Fixtures are invented and LLM-free; no scenario references a
+  real workflow from anyone's n8n.
+- **Learned:** a scenario earns its place by pinning a decision that could
+  plausibly go the other way. That rule is now in `features/README.md`.
 
-### Phase 1 — The van starts *(risk: low — "hello world install")*
-- **Goal:** the perfect skeleton, **zero logic**. Kelly's explicit ask.
-- **Scope:** `n8n.info.yml` + `ai_provider_n8n` with an `#[AiProvider]` plugin that
-  supports `chat`, returns **one hardcoded fake model**, and whose `chat()`
-  returns a canned `ChatOutput` ("hello from the van"). Settings form with URL +
-  `key_select`. Install into the image via `hooks/install.sh`.
-- **Exit — all four, or the phase isn't done:**
-  1. Module enables cleanly; no log errors.
-  2. **`n8n` appears in the Assistant's AI Provider dropdown.**
-  3. **`n8n` does NOT appear anywhere `ai_agents` picks a provider** (§2.2b).
-  4. An `ai_chatbot` block backed by that assistant renders the canned string.
-- **Decides:** packaging into the image; that the assistant surface accepts us at
-  all. **Depends on:** P0.
+### Phase 1 — The van starts ✅ **DONE**
+- **Goal:** the perfect skeleton, **zero logic**.
+- **Delivered:** base `n8n` module (connection settings, `N8nClient`, permission,
+  service) + `modules/ai_provider_n8n` with an `#[AiProvider]` plugin. Repo root is
+  the module, submodule under `modules/` — the shape `drupal/ai` itself uses.
+- **Exit — met, and proven on the live cluster rather than argued:**
+  1. ✅ Enables cleanly, no log errors.
+  2. ✅ `n8n` appears in the Assistant's provider dropdown.
+  3. ✅ `n8n` is **absent** everywhere `ai_agents` picks a provider.
+  4. ◑ The `ai_chatbot` block render was not exercised — the provider chain was
+     proven at the service level instead, which is the stronger check.
+  ```
+  ASSISTANT dropdown(chat):    ["n8n","openai"]
+  AGENT providers(chat+tools): ["openai"]
+  ```
+- **Learned — the good kind:** the agent-exclusion needed **zero lines**.
+  `AiProviderClientBase::getSupportedCapabilities()` already returns `[]`; the
+  correct implementation was *not overriding it*. That is now a loud comment,
+  because it is exactly the line a future agent would "helpfully" fill in.
 
-### Phase 2 — First sip *(risk: medium — the POC, and where the design gets tested)*
-- **Goal:** one real round-trip. Kelly: *"a POC of the source code before we do
-  any cicd."*
-- **Scope:** `N8nClient` (list workflows); `getConfiguredModels()` filtered to
-  chat triggers (Fork A1); resolve the webhook URL (Fork B — **B1 unverified,
-  B3 is the fallback**); `chat()` = last user message (C1) + thread-id tag →
-  `sessionId` (§2.2c) + POST + `{output}` → `ChatOutput`; ignore the system
-  prompt (D1).
-- **Exit — the falsifiable list:**
-  1. `N8N Workflow Agent` appears **by name** in the model dropdown.
-  2. A message in Drupal's chat box is answered **by that agent**.
-  3. A **follow-up shows the agent remembered** → proves the session bridge.
-  4. The n8n execution log shows **one** execution per message → proves no double-call.
-  5. **Fork F probed:** ask the agent for JSON; record whether `promptJsonDecoder`
-     mangles it. *Record the answer here even if it's ugly.*
-  6. **Anonymous session isolation proven** (§9, and `SECURITY.md`): two anonymous
-     visitors must **not** share an n8n session. Drupal derives the thread id from
-     `$this->currentUser->id()`, which is **`0` for every anonymous visitor** — if
-     that reaches n8n unmodified, every anonymous conversation lands in one memory
-     session and leaks across visitors. `shouldStoreSession()` *may* assign a unique
-     key first (`AiAssistantApiRunner.php:170`), which would save us. **Unproven —
-     prove it.** If it does collapse, derive anonymous sessions from the PHP session
-     instead of the user id.
-- **Decides:** Forks A, B, C, D, F. **Depends on:** P1.
+### Phase 2 — Roadworthy ✅ **DONE** *(this is the folded-in Chapter 2)*
+- **Goal:** a repo a contributor could pick up cold, before there is anything to
+  break. Moved **ahead** of the POC on purpose — see §8.5.
+- **Delivered:** public repo, GPL-2.0-or-later; PHPUnit (8.3 floor + 8.5
+  production, full sweep on main, single on PR); PHPCS `Drupal`+`DrupalPractice`;
+  **PHPStan as the PHP code scanner via SARIF**; Behat against an ephemeral n8n;
+  `pr.yml` changelog gate; `publish.yml` via `duplocloud/version-bump`; Dependabot;
+  signed commits; a ruleset with required checks; `dev.sh` for the live-pod loop.
+- **Exit:** ✅ every check green on a real PR, and every mechanism proven by
+  watching it **fail and then pass**.
+- **Learned — seven bugs the pipeline found that reasoning did not:**
+  1. `drupal/core-dev` unconstrained resolves to **8.0.0-beta15**, a Drupal 8-era
+     metapackage with no dependencies. Composer backtracks to it rather than
+     failing, so the install goes green with no phpunit. **Pin it.**
+  2. Composer path repos **symlink** by default, so `phpunit.xml.dist`'s relative
+     bootstrap resolves against the working tree, not the Drupal root.
+     `symlink:false`.
+  3. XML comments cannot contain a double hyphen — a CLI flag in a `phpcs.xml.dist`
+     comment made phpcs reject the entire ruleset with exit 16.
+  4. An **unmatched `ignoreErrors` entry** makes PHPStan report an error belonging
+     to no file; SARIF renders it with no `locations`; code scanning rejects the
+     whole upload. Only ignore what you have seen.
+  5. Level 5 was a guess. `drupal/ai` and `ai_provider_openai` both run **level 1**.
+  6. `drupal/*` **is not on Packagist** (404). Dependabot reads `composer.json` as a
+     root package and cannot resolve `drupal/ai` or `drupal/key` without the
+     drupal.org facade declared. CI never noticed, because it installs into
+     `drupal/recommended-project`, which already has it.
+  7. Dependabot PRs arrive **unassigned** — `addAssignees: author` cannot assign a
+     bot — and cannot write a changelog, hence the `no changelog` label.
+- **Learned — the scanner probe.** "PHPStan found nothing" and "PHPStan is broken"
+  render identically: an empty Security tab. We planted a deliberate
+  `method.notFound`, watched it surface as an alert with file and line **and** turn
+  the merge gate red, then removed it. An empty tab is now trustworthy. **Do this
+  again whenever a gate's healthy state is indistinguishable from its broken one.**
 
-### Phase 3 — Roadworthy *(risk: low — folded-in Chapter 2)*
-- **Goal:** a repo a contributor could pick up cold. Only **after** the POC proves
-  the idea is real — no ceremony around a thing that might not work.
-- **Scope:** public GitHub repo under `kubed-io`; PHPUnit Unit+Kernel green in CI;
-  Behat wired to the live n8n + a Drupal test site, driving the §7 features;
-  `CONTRIBUTING.md` / `AGENTS.md` / `SECURITY.md` / `CHANGELOG.md`; PHPCS
-  (Drupal coding standards) + PHPStan; `publish.yml` with `duplocloud/version-bump`;
-  Dependabot; branch protection.
-- **Exit:** the §7 features run green in the pipeline; a cold contributor can get
-  a local stack up from `CONTRIBUTING.md` alone.
-- **Depends on:** P2. **Explicitly not before it.**
+### Phase 3 — Knowing where n8n lives ☐ **THE REMAINING WORK**
+- **Goal:** the chapter's end state. An admin registers an n8n instance and proves
+  it works, from the UI and from the CLI. **This is the gate every other feature
+  depends on** — model discovery, chat, session, webform all begin with "given the
+  connection is configured and verified".
+- **Shape — deliberately the sibling's:** a URL, a token, a **Test connection**
+  button. `nextcloud-n8n` landed on that shape after real use; we are copying the
+  conclusion, not re-deriving it. This also sets the house style for every admin
+  screen that follows.
+- **Scope:**
+  - The settings form exists (`N8nSettingsForm`: URL + `key_select` + timeout +
+    Test connection) and `N8nClient::testConnection()` exists. **Neither is tested,
+    and neither has been run against a real n8n.**
+  - **Unit tests** for `N8nClient` with a mocked transport: URL normalisation, the
+    `X-N8N-API-KEY` header, the friendly-error mapping for 401/403/404/timeout, and
+    `isConfigured()`.
+  - **Drush commands** — `n8n:set-url`, `n8n:set-key`, `n8n:test`. Not a
+    convenience: the cluster has to bake the connection with no human at a form, and
+    a non-zero exit is what lets an install script fail loudly.
+  - **Wire `admin-connection.feature`** — drop its `@todo`, implement the steps
+    against the ephemeral n8n. It becomes the first live feature in the pipeline.
+- **Exit — all four:**
+  1. Unit tests green for the client's behaviour, including every error path.
+  2. `admin-connection.feature` runs **live** in `integration.yml` — a real Test
+     connection against a real n8n, and a real failure against a bad key.
+  3. `drush n8n:test` exits 0 configured, non-zero broken.
+  4. An admin does it by hand on the live pod and it works.
+- **Depends on:** P1, P2. **Decides:** the admin-screen house style.
 
-### Phase 4 — The second passenger *(risk: medium)*
-- **Goal:** `n8n_webform` — Drupal forms submit to n8n.
-- **Scope:** subclass `RemotePostWebformHandler`; endpoint picker fed by
-  `N8nClient` (form triggers + webhooks); auth header; response → tokens.
-- **Open question:** how much does stock Remote Post already give us? **If the
-  honest answer is "all of it", we ship documentation instead of a module** and
-  that is a win, not a failure.
-- **Depends on:** P2 (the client + connection).
+### §8.5 — Why the POC moved out of this chapter
 
-### Phase 5 — Stretch
-- Streaming (Fork E2). Forwarding the system prompt as opt-in (Fork D3).
-- Adopting `drupal.org/project/n8n` (§2.4).
-- A `link`-style "open this agent in n8n" affordance.
+The original plan had **Phase 2 — First sip**: one real chat round-trip, before the
+CI. Kelly re-scoped it, and the reasoning is worth keeping.
 
-**Critical path:** P0 → P1 → P2 → P3. P4 forks off after P2.
+A POC proves the *idea*. We already proved the idea — the part that could have been
+false was "will Drupal let n8n be an assistant and not an agent", and §2.2b answered
+it on the live cluster in Phase 1, for zero lines. What a chat POC would prove now is
+the *plumbing*, and plumbing is what Chapter 2 is for.
+
+Meanwhile the connection is the **base case every scenario opens with**. Building it
+last would mean every other feature was built on an untested foundation. Building it
+now, with tests, means Chapter 2 starts from `Given the connection to n8n is
+configured and verified` and that line is *already true*.
+
+So Chapter 1 ends at a boring, complete, well-tested thing that does one job
+perfectly. That is a better place to build from than a thrilling thing that half
+works.
+
+### Chapter 2 — the logic *(next)*
+Everything with a fork attached: model discovery (Fork A), the webhook URL (Fork B —
+**B1 unverified**), the session bridge, the thrown-away system prompt (Fork D), the
+`promptJsonDecoder` hazard (Fork F), and the **anonymous-session collision** in §9 —
+which `./dev.sh probe` can now answer in minutes.
+
+### Later
+Webform (§8's old Phase 4 — first answer "does stock Remote Post already do this?"),
+streaming (Fork E2), adopting `drupal.org/project/n8n` (§2.4).
+
+**Critical path:** P0 → P1 → P2 → **P3 closes the chapter**.
 
 ---
 
@@ -681,11 +804,56 @@ difficulty — it's scope creep dressed up as helpfulness.
 
 ## 11. What "done" looks like for this chapter
 
-1. The README and the `.feature` files describe a product Kelly recognises.
-2. `n8n` is in the Assistant provider dropdown and **absent** from the agent one.
-3. Kelly types into a Drupal chat box and **his own n8n agent answers**.
-4. He types again and **it remembers**.
-5. The repo is public, CI is green, and the features run in the pipeline.
-6. Nobody has written a line of JavaScript.
+The bar moved once, deliberately (§8.5). This is the current one.
 
-Then we find out whether the smoothie man is real.
+1. ✅ The README and the `.feature` files describe a product Kelly recognises.
+2. ✅ `n8n` is in the Assistant provider dropdown and **absent** from the agent one
+   — proven on the live cluster, next to the real openai provider.
+3. ✅ The repo is public, CI is green, and every gate has been proven by watching it
+   fail and then pass.
+4. ✅ Nobody has written a line of JavaScript.
+5. ☐ **An admin registers an n8n instance — URL, key, Test connection — and it
+   works.** From the UI, from drush, and from `admin-connection.feature` running
+   live in the pipeline.
+
+When 5 lands, the van starts, has papers, and knows the address. **Then** we drive.
+
+---
+
+## 12. The state of the van (2026-07-15)
+
+For whoever picks this up cold.
+
+**The repo**: [kubed-io/drupal-n8n](https://github.com/kubed-io/drupal-n8n) ·
+GPL-2.0-or-later · main gated by ruleset `18987595` (signed commits, 1 approval,
+strict status checks) · required checks are **PR Tasks · PHPUnit PHP 8.5 · PHP
+Quality**.
+
+> **`Integration Tests` is deliberately NOT required.** It has a `paths:` filter, so
+> a docs-only PR would never report it and would hang forever. That is the trap that
+> bit `nextcloud-n8n`. Same reason `PHPUnit PHP 8.3` is not required: it only runs on
+> main.
+
+**Merged so far**: #1 the skeleton + spec + CI · #3 dependabot hygiene · #4 the
+drupal.org composer facade. (#2 was Dependabot's phpunit bump, superseded — phpunit
+13 needs PHP ≥8.4.1 and we support ≥8.3, so the constraint is `^11.5 || ^12 || ^13`
+and phpunit majors stop being a decision.)
+
+**The fast loop**: `./dev.sh` pushes this working copy into the live Drupal pod.
+`enable` · `probe <file.php>` · `heal` · `remove`.
+
+> ⚠️ **The loop's one sharp edge.** Code lands on the pod's **ephemeral image
+> filesystem**, but `drush en` writes to the **database**. A pod restart leaves the
+> module enabled with no code on disk, and it fatals. `./dev.sh heal` fixes it;
+> `remove` when you walk away. The Nextcloud equivalent is safe here because
+> `custom_apps` is PVC-backed — this is not.
+
+**Also true**: the pod is a production image (`--no-dev`), so **there is no phpunit
+in it** — probe runtime behaviour there, run the suite in CI. `drush php:script`
+does not work; use `drush php:eval 'require "/tmp/x.php";'`, and the file **must**
+start with `<?php` or require silently echoes it at you.
+
+**Left on the live site** from Phase 1's proof: modules `n8n` + `ai_provider_n8n`
+enabled, a dummy Key entity `n8n_dev_key`, and `n8n.settings` pointed at
+`http://n8n.flow.svc.cluster.local`. Clean up with `./dev.sh remove` when it stops
+being useful.
