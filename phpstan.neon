@@ -36,7 +36,14 @@ parameters:
     - */vendor/*
     - */node_modules/*
 
-  ignoreErrors:
-  # Drupal's plugin managers return mixed by contract, so calls on a created
-  # instance cannot be narrowed without a docblock lie.
-  - identifier: method.nonObject
+  # No ignoreErrors here, deliberately.
+  #
+  # There was a speculative `- identifier: method.nonObject` entry, added on a
+  # hunch that Drupal's plugin managers would trip it. Nothing tripped it — and
+  # because reportUnmatchedIgnoredErrors defaults to true, PHPStan then reported
+  # the unmatched pattern as an error belonging to NO FILE. The SARIF formatter
+  # emitted a result with no `locations`, and code scanning rejected the entire
+  # upload with "locationFromSarifResult: expected at least one location".
+  #
+  # So: only ignore an error you have actually seen, and paste the real message.
+  # An unmatched ignore is not free — it breaks the Security tab.

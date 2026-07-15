@@ -1,0 +1,3 @@
+# PHPUnit errors out on a testsuite <directory> that does not exist, so this
+# directory is kept even while empty. Kernel tests for the base n8n module land
+# here; the provider's live in modules/ai_provider_n8n/tests/src/Kernel.
