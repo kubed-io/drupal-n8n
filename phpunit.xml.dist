@@ -5,12 +5,22 @@
   driving a real Drupal against a real ephemeral n8n. See CONTRIBUTING.md
   "Testing" and saga/Chapter_1_Packing_the_Van.md §7.
 
-  Run from a Drupal root that has this module installed:
-    ../../vendor/bin/phpunit -c modules/contrib/n8n
+  The bootstrap path assumes this module sits at web/modules/contrib/n8n inside a
+  real Drupal, which is where composer's installer puts it:
+
+      web/modules/contrib/n8n  ->  ../../../  ->  web/  ->  web/core/tests/...
+
+  That means the path repo used in CI MUST be configured with symlink disabled.
+  With a symlink, PHPUnit resolves this relative path against the *working tree*
+  rather than the Drupal root, and you get:
+  "Cannot open bootstrap script .../module/../../core/tests/bootstrap.php".
+
+  Run from the Drupal root:
+    ./vendor/bin/phpunit -c web/modules/contrib/n8n/phpunit.xml.dist
 -->
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
-         bootstrap="../../core/tests/bootstrap.php"
+         bootstrap="../../../core/tests/bootstrap.php"
          colors="true"
          beStrictAboutTestsThatDoNotTestAnything="true"
          beStrictAboutOutputDuringTests="true"

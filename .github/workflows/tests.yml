@@ -92,7 +92,10 @@ jobs:
     - name: Require the module from the working tree
       run: |
         cd "$DRUPAL_DIR"
-        composer config repositories.module path "$GITHUB_WORKSPACE/module"
+        # symlink:false so the module is COPIED to web/modules/contrib/n8n.
+        # With a symlink, relative paths in phpunit.xml.dist resolve against
+        # the working tree and cannot find core.
+        composer config repositories.module '{"type":"path","url":"'"$GITHUB_WORKSPACE"'/module","options":{"symlink":false}}'
         composer require "drupal/$MODULE:*" drupal/ai drupal/key \
           --no-interaction --no-progress
         # PIN core-dev to the core major. Unconstrained, composer silently
