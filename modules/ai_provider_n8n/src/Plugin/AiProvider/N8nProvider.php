@@ -88,10 +88,10 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   /**
    * {@inheritdoc}
    *
-   * getSupportedCapabilities() is deliberately NOT overridden: the base class
-   * returns an empty array, which is the exclusion mechanism. Adding a capability
-   * here is the single change that would let n8n be picked as an agent brain and
-   * quietly misbehave.
+   * Note that getSupportedCapabilities() is deliberately NOT overridden: the base
+   * class returns an empty array, and that IS the exclusion mechanism. Adding a
+   * capability there is the single change that would let n8n be picked as an
+   * agent brain and quietly misbehave.
    */
   public function getConfiguredModels(?string $operation_type = NULL, array $capabilities = []): array {
     // A caller asking for a capability wants a raw model. We are not one.
