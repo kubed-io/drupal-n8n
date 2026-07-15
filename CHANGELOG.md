@@ -45,4 +45,5 @@ module, but no agent is behind it — `chat` returns a placeholder. See
 - CI steps declare where they run instead of hiding it in a `cd`.
 - The installed package no longer carries the test suite, the CI config or the saga — 71% smaller.
 - Tests run against the source using Drupal core's own PHPUnit config, the way drupal.org runs contrib.
+- The README says plainly which parts are built and which are still specification.
 - PHPStan reports through code scanning, so findings show up in the Security tab and as PR annotations.

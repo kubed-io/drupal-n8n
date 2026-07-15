@@ -3,10 +3,12 @@ name: 🧪 Tests
 # The fast loop: PHPUnit Unit + Kernel. No network, no n8n, no browser.
 #
 # A Drupal module cannot be tested standalone — PHPUnit needs core's bootstrap and
-# the site's autoloader. So we build a throwaway Drupal, drop this module in as a
-# composer PATH repository, and run the module's own phpunit.xml.dist from the
-# Drupal root. That is the same shape the Drupal GitLab CI templates use, minus
-# GitLab.
+# the site's autoloader. So we build a throwaway Drupal and symlink this module in
+# as a composer PATH repository, which means the tests run from SOURCE.
+#
+# We use CORE's phpunit config rather than shipping our own: its bootstrap is
+# relative to core/ and so is correct wherever the module lives. That is the same
+# shape the Drupal GitLab CI templates use, minus GitLab.
 #
 # Functional / FunctionalJavascript are deliberately absent — Behat owns that
 # layer (integration.yml). See CONTRIBUTING.md "Testing".
