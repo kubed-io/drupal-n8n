@@ -4,3 +4,45 @@
 # suggests that this might interleave lines arbitrarily, but empirically
 # it keeps added chunks contiguous
 CHANGELOG.md                merge=union
+
+# ---------------------------------------------------------------------------
+# What ships in the package.
+#
+# `export-ignore` is what `git archive` — and therefore GitHub's source
+# archives — leave out. That matters here because composer's `vcs` repository
+# type does NOT clone this repo for a tagged version: it downloads a zip from
+# GitHub's API. So these lines are the only thing standing between a Drupal site
+# and a copy of our saga, our CI and our test suite sitting in
+# web/modules/contrib/n8n on production.
+#
+# Rule of thumb: if a running site would never read it, it does not ship.
+# Kept: the module's .yml files, src/, config/, modules/, composer.json,
+# LICENSE.txt, and README.md + CHANGELOG.md — a site owner reasonably wants
+# those last two.
+#
+# Verify after tagging, do not assume:
+#   gh api repos/kubed-io/drupal-n8n/zipball/<tag> > /tmp/p.zip && unzip -l /tmp/p.zip
+# ---------------------------------------------------------------------------
+
+# CI, automation and repo furniture.
+/.github                    export-ignore
+/.gitattributes             export-ignore
+/.gitignore                 export-ignore
+
+# The story, and the contributor-facing docs. Excellent; not runtime.
+/saga                       export-ignore
+/CONTRIBUTING.md            export-ignore
+/AGENTS.md                  export-ignore
+/SECURITY.md                export-ignore
+
+# The specification and the suites that prove it — both belong to contributors,
+# not to a site. `tests` is deliberately unanchored so submodule suites go too
+# (modules/*/tests/).
+/features                   export-ignore
+tests                       export-ignore
+
+# Dev tooling: the live-pod loop and the quality configs.
+/dev.sh                     export-ignore
+/phpcs.xml.dist             export-ignore
+/phpstan.neon               export-ignore
+/phpunit.xml.dist           export-ignore
