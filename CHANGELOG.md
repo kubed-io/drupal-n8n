@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-15
+
 ### Fixed
 
 - `drush n8n:test` no longer fails with a TypeError while reporting a connection that actually worked — which broke unattended installs on 0.0.2.
