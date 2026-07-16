@@ -317,9 +317,28 @@ class N8nClientTest extends UnitTestCase {
   public function testDiscoveryFiltersToPublicChatTriggers(): void {
     $client = $this->buildClient([
       $this->workflowListing([
-        ['id' => 'wf1', 'name' => 'Echo Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
-        ['id' => 'wf2', 'name' => 'Private Agent', 'nodes' => [$this->chatTrigger('hook-2', ['public' => FALSE])]],
-        ['id' => 'wf3', 'name' => 'Webhook Only', 'nodes' => [['type' => 'n8n-nodes-base.webhook', 'name' => 'Webhook', 'webhookId' => 'hook-3', 'parameters' => []]]],
+        [
+          'id' => 'wf1',
+          'name' => 'Echo Agent',
+          'nodes' => [$this->chatTrigger('hook-1')],
+        ],
+        [
+          'id' => 'wf2',
+          'name' => 'Private Agent',
+          'nodes' => [$this->chatTrigger('hook-2', ['public' => FALSE])],
+        ],
+        [
+          'id' => 'wf3',
+          'name' => 'Webhook Only',
+          'nodes' => [
+            [
+              'type' => 'n8n-nodes-base.webhook',
+              'name' => 'Webhook',
+              'webhookId' => 'hook-3',
+              'parameters' => [],
+            ],
+          ],
+        ],
       ]),
     ]);
 
@@ -341,7 +360,16 @@ class N8nClientTest extends UnitTestCase {
   public function testChatHubAgentNameWinsAsTheLabel(): void {
     $client = $this->buildClient([
       $this->workflowListing([
-        ['id' => 'wf1', 'name' => 'boring-internal-name', 'nodes' => [$this->chatTrigger('hook-1', ['public' => TRUE, 'agentName' => 'Concierge'])]],
+        [
+          'id' => 'wf1',
+          'name' => 'boring-internal-name',
+          'nodes' => [
+            $this->chatTrigger('hook-1', [
+              'public' => TRUE,
+              'agentName' => 'Concierge',
+            ]),
+          ],
+        ],
       ]),
     ]);
 
@@ -467,7 +495,7 @@ class N8nClientTest extends UnitTestCase {
    *
    * @covers ::chatSend
    */
-  public function testChatTimeoutHasASixtySecondFloor(): void {
+  public function testChatTimeoutFloorIsSixtySeconds(): void {
     $client = $this->buildClient([
       $this->workflowListing([
         ['id' => 'wf1', 'name' => 'Echo Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
