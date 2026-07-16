@@ -29,9 +29,10 @@ link before you act on it.
 | The ownership split | n8n owns the model, prompt, memory, tools. Drupal owns the chat box and the door. **No third place.** | [README § who owns what](README.md#who-owns-what) |
 | Why n8n is hidden from agents | We decline the `ChatTools` capability; Drupal's own filtering does the rest. Zero lines of code. | [README § why n8n is absent](README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown) |
 | Settings that do nothing | The assistant form shows prompt/history/tools fields that are **inert** under n8n. This surprises everyone. | [README § settings that intentionally do nothing](README.md#settings-that-intentionally-do-nothing) |
-| What ships | `n8n` (connection) + `ai_provider_n8n` (the headline) + `n8n_webform` (later). | [README § modules in this repo](README.md#modules-in-this-repo) |
-| What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction. | [README § not this module](README.md#not-this-module) |
-| Where the work stands | The **connection is live**; everything past it is specification. | [saga § where we are](saga/Chapter_1_Packing_the_Van.md) |
+| What ships | `n8n` (connection) + `ai_provider_n8n` (the headline). | [README § modules in this repo](README.md#modules-in-this-repo) |
+| What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction, not a tool bridge — MCP owns tools in both directions. | [README § not this module](README.md#not-this-module) |
+| Where the work stands | The **core loop is proven live** — connection, discovery, chat, session bridge. Left: hardening, tests, tag-sync. | [saga Ch2](saga/Chapter_2_The_Drive.md) |
+| How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [features/README § how a feature becomes a feature](features/README.md#how-a-feature-becomes-a-feature) |
 
 ---
 
@@ -40,9 +41,10 @@ link before you act on it.
 1. **Find the scenario.** Almost everything is already specified in
    [features/](features/). If your task contradicts one, **stop and say so** — do
    not silently pick a side.
-2. **Read [saga §2](saga/Chapter_1_Packing_the_Van.md) before researching anything
-   about Drupal AI.** It is *verified environment* with file:line citations.
-   Re-deriving it wastes a session.
+2. **Read [saga Ch2 §1](saga/Chapter_2_The_Drive.md) before researching anything
+   about Drupal AI or the n8n chat contract.** It is *verified ground truth* with
+   file:line citations and live-probe receipts, and it supersedes Chapter 1 where
+   they disagree. Re-deriving it wastes a session.
 3. **Ask what stock mechanism already does this.** The answer is usually "Drupal or
    n8n already does" — see the "don't write it" table in saga §3.
 4. **Then write the smallest thing that satisfies the scenario.**
@@ -76,16 +78,22 @@ Violating one breaks the product's thesis, not just its style.
 
 Each cost someone a session. One line each; follow the link before you act on it.
 
-**Drupal AI internals** → [saga §2.2](saga/Chapter_1_Packing_the_Van.md)
+**Drupal AI internals** → [saga Ch2 §1.1](saga/Chapter_2_The_Drive.md) *(supersedes Ch1 §2.2 — the AI module moved)*
 
-- The session bridge is a **tag** — `ai_assistant_thread_<id>` in `$tags`, not a
-  parameter. No core patch needed.
-- Drupal **force-overrides the assistant's system prompt** with its own bundled
-  file. You cannot switch it off per-assistant. We ignore the prompt entirely, so
-  do not try to make that field work.
-- A **`promptJsonDecoder`** sits between the provider and the response. A
-  JSON-shaped answer may be parsed as an actions array. Sharpest edge in the design
-  — saga §5 Fork F.
+- **New API only.** Every assistant is agent-backed; this module supports no other
+  mode. Do not add code for the legacy non-agent path, and do not promise
+  streaming — it is structurally unreachable for agent-backed assistants
+  (three closed gates, saga Ch2 §1.3a).
+- The session bridge is a **tag** — **`ai_agents_thread_<key>`** in `$tags`.
+  `ai_assistant_thread_` does NOT exist on this path; if you see it referenced,
+  it is a stale memory from Chapter 1.
+- The companion agent must have **zero tools** — that is what makes one message
+  equal exactly one provider call (proven live). Tools on it = two brains fighting.
+- Creating an `ai_assistant` in code? **`llm_configuration` and
+  `specific_error_messages` must be `[]`, never omitted** — a null there makes the
+  entity unloadable AND undeletable through the entity API (saga Ch2 §1.1c).
+- A workflow is only a model when its chat trigger is **publicly available** —
+  active alone still 404s. Fixtures too.
 
 **Domain config** → [saga §9.1](saga/Chapter_1_Packing_the_Van.md)
 
@@ -151,9 +159,10 @@ drush n8n:test
 ```
 
 **Those three drush commands are all that exist.** The README also documents
-`n8n:models` and `n8n:chat` — that file is the **specification**, so it describes
-the finished product. They arrive with model discovery in Chapter 2. Do not cite
-them as working.
+`n8n:models`, `n8n:chat`, `n8n:set-tag`, `n8n:sync` and `n8n:assistant` — that file
+is the **specification**, so it describes the finished product. Do not cite them as
+working. The provider's `chat()` and model discovery ARE real as of the Chapter 2
+POC, but live only in the working copy until released.
 
 `./dev.sh` pushes this working copy into the live Drupal pod for runtime probing.
 **Read its header before using `enable`** — the code is ephemeral but `drush en`

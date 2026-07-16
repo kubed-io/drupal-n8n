@@ -2,8 +2,9 @@
 # and a prerequisite to every other feature. The admin points the module at an n8n
 # instance with a base URL and an API key, then tests the connection.
 #
-# The API key is held by the Key module, not by this module, so it can live in a
-# file, an env var, or a secrets manager. We only hold a reference.
+# The API key is held by the Key module — the drupal.org "Key" project, a hard
+# dependency of this module — so the secret can live in a file, an env var, or a
+# secrets manager. We only ever hold the key entity's name.
 #
 # Obtaining an n8n API key is out of scope — that's the n8n admin's job. In the tests
 # it is minted against the ephemeral n8n and provided as setup.
@@ -15,7 +16,9 @@ Feature: Admin connects Drupal to n8n
   So that every n8n feature has a valid, tested connection to rely on
 
   Background:
-    Given the n8n module is installed and enabled
+    Given the key module is installed and enabled
+    And the n8n module is installed and enabled
+    And a key holding a valid n8n API key was added to Drupal
 
   Scenario: Set up and verify the connection
     When the admin sets the n8n base URL

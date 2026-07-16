@@ -18,7 +18,8 @@ Feature: Failures surface instead of hanging
 
   # The most common failure in practice: n8n only serves a production chat webhook
   # while the workflow is active, so an agent that worked yesterday stops the moment
-  # someone toggles it off in n8n.
+  # someone toggles it off in n8n. Switching off the trigger's "publicly available"
+  # produces the same 404 and must surface the same way — one scenario covers both.
   Scenario: The workflow was deactivated after the assistant was configured
     Given an assistant named "Stale" uses the n8n agent "Inactive Agent"
     When a visitor sends "hello" to the assistant "Stale"

@@ -1,3 +1,4 @@
 base_url: ''
 api_key: ''
+tag: ''
 timeout: 30

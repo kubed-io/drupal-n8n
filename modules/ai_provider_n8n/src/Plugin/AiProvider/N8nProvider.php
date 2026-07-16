@@ -31,10 +31,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * @see README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown
  * @see README.md#settings-that-intentionally-do-nothing
  * @see features/agent-exclusion.feature
- *
- * @todo Phase 2 — swap the placeholder model list and canned reply for the real
- *   client. This is the Phase 1 skeleton: it proves the plugin is discovered,
- *   offered to assistants and hidden from agents.
  */
 #[AiProvider(
   id: 'n8n',
@@ -43,9 +39,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class N8nProvider extends AiProviderClientBase implements ChatInterface {
 
   /**
-   * The placeholder model used until the real client lands in Phase 2.
+   * The tag prefix that carries the assistant's thread key.
+   *
+   * On the current (agent-backed) assistant pipeline, AiAgentEntityWrapper
+   * tags every provider call with `ai_agents_thread_<key>`, where <key> is the
+   * assistant runner's thread key — stable per user, per assistant, per
+   * browser session. That key becomes n8n's sessionId, so the workflow's
+   * memory node owns the conversation and Drupal stores nothing.
+   *
+   * NOT `ai_assistant_thread_` — that tag only exists on the legacy
+   * (non-agent) path, which this module does not support.
    */
-  protected const PLACEHOLDER_MODEL = 'hello-world';
+  protected const THREAD_TAG_PREFIX = 'ai_agents_thread_';
 
   /**
    * Reported when only n8n knows the real limit, which is always.
@@ -105,8 +110,12 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
       return [];
     }
 
-    // @todo Phase 2 — list workflows from n8n and keep those with a chat trigger.
-    return [self::PLACEHOLDER_MODEL => 'Hello World (placeholder)'];
+    $models = [];
+    foreach ($this->client->listChatWorkflows() as $workflow_id => $info) {
+      $models[$workflow_id] = $info['label'];
+    }
+
+    return $models;
   }
 
   /**
@@ -143,16 +152,56 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Only the newest user message travels: the workflow's memory node already
+   * holds the history, keyed by the session id, and replaying Drupal's copy
+   * would make the agent see every message twice. The system prompt Drupal
+   * builds is deliberately dropped — the n8n agent has its own.
    */
   public function chat(array|string|ChatInput $input, string $model_id, array $tags = []): ChatOutput {
-    // @todo Phase 2 — resolve the workflow's chat webhook, POST
-    //   {action, sessionId, chatInput}, and return the agent's {output}. The
-    //   session id comes from the `ai_assistant_thread_` tag in $tags; only the
-    //   newest message is sent, because the agent's memory node holds the rest.
-    $text = sprintf('Hello from the van. The n8n provider is wired up, but has no agent behind it yet (model: %s).', $model_id);
+    $text = $this->client->chatSend(
+      $model_id,
+      $this->sessionIdFromTags($tags),
+      $this->lastUserMessage($input),
+      ['source' => 'drupal'],
+    );
 
     $message = new ChatMessage('assistant', $text);
     return new ChatOutput($message, $text, []);
+  }
+
+  /**
+   * The n8n session id for this conversation.
+   *
+   * Falls back to a per-call id when no thread tag is present (drush, the API
+   * explorer): the reply still works, it just doesn't thread.
+   */
+  protected function sessionIdFromTags(array $tags): string {
+    foreach ($tags as $tag) {
+      if (str_starts_with($tag, self::THREAD_TAG_PREFIX)) {
+        return substr($tag, strlen(self::THREAD_TAG_PREFIX));
+      }
+    }
+
+    return uniqid('drupal-oneshot-', TRUE);
+  }
+
+  /**
+   * The newest user message out of whatever shape the caller sent.
+   */
+  protected function lastUserMessage(array|string|ChatInput $input): string {
+    if (is_string($input)) {
+      return $input;
+    }
+    $messages = $input instanceof ChatInput ? $input->getMessages() : $input;
+    for ($i = count($messages) - 1; $i >= 0; $i--) {
+      $message = $messages[$i];
+      if ($message instanceof ChatMessage && $message->getRole() === 'user') {
+        return $message->getText();
+      }
+    }
+
+    throw new \RuntimeException('No user message to send to n8n.');
   }
 
   /**
