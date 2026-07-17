@@ -55,14 +55,15 @@ sets the pace.
   `drupal-signature.feature` (one contract, one feature).
 - Streaming is structurally impossible on the new API (§1.3a). Fork F dead.
 
-**CI status (as of this writing):** PR #12's last push (`e7ef41f`) went
-red on **PHP Quality** — phpcs docblock/naming errors in the new integration
-`FeatureContext`, plus the preload **403'd** because the minted key lacked
-`tag:list` scope. Both **fixed locally, not yet pushed**: method names
-de-camel-cased, docblock short descriptions split, `@domain`/`@todo` removed
-from a class docblock, mint scopes extended, preload rewritten to the sibling's
-JSON-file pattern. **The next commit is that fix.** PHPUnit + PHPStan + PR Tasks
-were green.
+**CI status:** PR #12 is **fully green** as of `3d7f8ce`. All seven checks pass;
+the integration suite runs **23 scenarios / 111 steps, all passing** against a
+real ephemeral n8n — model discovery incl. the site tag and two-door
+workflows, the provider surfaces, the Drupal signature, and the live multisite
+domain-override scenario. It took three red rounds to get there, each a real
+layer: (1) phpcs 41 errors + the minted key lacked `tag:list` scope so preload
+403'd; (2) 1 phpcs error + preload resolved its fixtures dir one level too
+shallow; (3) green. **Awaiting Dr K's review + merge** — the ruleset needs one
+approval and an agent cannot self-approve.
 
 **The standing gotcha:** GitHub's REST API had a global outage on 07-16 that
 made the EnricoMi *reporter* step hang ~11 min and fail a *passing* test run.
