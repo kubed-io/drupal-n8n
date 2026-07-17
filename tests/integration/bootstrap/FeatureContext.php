@@ -575,8 +575,8 @@ class FeatureContext implements Context {
   /**
    * Creates or updates a Key entity with a literal value.
    *
-   * key_provider "config" stores the value in the entity — fine for a test key
-   * that dies with the ephemeral site. The module under test never sees the
+   * The "config" key provider stores the value in the entity — fine for a test
+   * key that dies with the ephemeral site. The module under test never sees the
    * raw value either way; it asks the key repository at call time.
    */
   protected function createKeyEntity(string $id, string $value): void {

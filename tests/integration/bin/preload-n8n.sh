@@ -23,7 +23,9 @@ set -euo pipefail
 : "${N8N_URL:?N8N_URL is required}"
 : "${N8N_API_KEY:?N8N_API_KEY is required — run mint-n8n-key.sh first, and it must carry tag scopes or the first call 403s}"
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/../workflows" && pwd)"
+# bin → integration → tests → workflows: the fixtures live at tests/workflows,
+# beside tests/integration, the way the sibling nextcloud-n8n lays them out.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../workflows" && pwd)"
 
 api() {
   # api <method> <path> [json-body]
