@@ -34,7 +34,6 @@ folder itself is the authoritative detail.
 | [composer.json](composer.json) | Declares the **drupal.org composer repository**. Modules hosted *on* drupal.org omit this because their packaging resolves `drupal/*` for them — we are on GitHub, so we must say where those packages come from, or Dependabot cannot resolve them and the update job errors out. Composer only honours `repositories` from the **root** package, so this is invisible to a site installing the module. |
 | `n8n.info.yml`, `src/` | The **base module**: the n8n connection, the REST client, drush commands. Ships no features of its own. |
 | `modules/ai_provider_n8n/` | The headline: n8n agents as Drupal AI Assistants. One `Plugin/AiProvider/`. |
-| `modules/n8n_webform/` | Webform submissions → n8n. Subclasses Webform's own Remote Post handler. |
 | `tests/src/{Unit,Kernel}/` | PHPUnit. Drupal-native, runs without a booted site. |
 | `tests/integration/` | Behat suite (own `composer.json`), fixtures, and the ephemeral-n8n scripts. |
 | `.github/workflows/` | `pr.yml`, `tests.yml`, `quality.yml`, `integration.yml`, `publish.yml`. |
@@ -54,9 +53,10 @@ whole thesis is that Drupal and n8n already do the work:
 - The chat UI is `ai_chatbot`. **We ship no JavaScript.** Do not add any.
 - The assistant is `ai_assistant_api`. We add no config entity of our own.
 - The secret is the **Key** module's. We never hold a raw credential.
-- Forms already POST to URLs — `n8n_webform` *subclasses* `RemotePostWebformHandler`
-  rather than reimplementing it.
 - n8n → Drupal is the **existing MCP server**. We write nothing for that direction.
+- Drupal agents calling n8n workflows as **tools** is MCP's job in the other
+  direction too — n8n's MCP Server Trigger plus the `mcp_client` module. We do not
+  build a tool bridge.
 
 Before adding a class, ask what stock mechanism you're about to duplicate. If a PR
 grows the surface, it needs to justify why in the description.
@@ -94,17 +94,31 @@ capability filtering does the rest. If you find yourself writing a `hook_form_al
 to hide n8n from somewhere, stop — you've broken the capability contract instead of
 fixing it. See [`features/agent-exclusion.feature`](features/agent-exclusion.feature).
 
-### The spec comes first
+### The spec comes first — and the README comes before the spec
 
-The `.feature` files are the requirements. They were written before the code, and
-they drive both the README and the integration suite.
+The order is **README → verify → feature file → code**, and each step earns the
+next:
 
-- **Changing behaviour? Change the `.feature` file in the same PR.** A behaviour
-  change with no spec change is a bug report waiting to happen.
-- **New feature? Write the scenarios first**, get them agreed, then implement.
-- **A scenario you can't implement yet** gets tagged `@todo` and is skipped by the
-  runner — documented, not deleted.
-- Every feature in the README links to its spec and its code. Keep those links true.
+1. **A feature starts as prose in the README** — the highest level, the least
+   detail. An idea is cheapest to scrutinize, argue about, or kill while it is
+   still a paragraph. The README describes the finished product; that is why it
+   documents things that don't exist yet.
+2. **Due diligence before it becomes a `.feature` file.** Read the actual code
+   (Drupal's and n8n's), probe the live systems, check for prior art. Do not spec
+   what you have not verified is possible — this repo has killed "obvious"
+   features at this step (streaming; the Execute Workflow trigger), and each kill
+   was cheaper than the code would have been.
+3. **Spec the base case first, then a few likely edges — strategically.** A
+   handful of scenarios that each pin a real decision beat exhaustive coverage.
+   The refactor loop at the end of implementation reliably uncovers the edges
+   nobody could have guessed; speculative scenarios written up front are the ones
+   that turn out wrong, and then they cost a deletion *and* an argument.
+4. **Changing behaviour? Change the `.feature` file in the same PR.** A behaviour
+   change with no spec change is a bug report waiting to happen.
+5. **A scenario you can't implement yet** gets tagged `@todo` and is skipped by
+   the runner — documented, not deleted.
+
+Every feature in the README links to its spec and its code. Keep those links true.
 
 ### Validate against a real Drupal and a real n8n
 

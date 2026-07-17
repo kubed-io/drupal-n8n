@@ -8,6 +8,9 @@ n8n.settings:
     api_key:
       type: string
       label: 'Machine name of the Key entity holding the n8n API key'
+    tag:
+      type: string
+      label: 'n8n tag marking the workflows meant for this site'
     timeout:
       type: integer
       label: 'Request timeout in seconds'

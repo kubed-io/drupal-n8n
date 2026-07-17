@@ -70,4 +70,36 @@ interface N8nClientInterface {
    */
   public function request(string $method, string $path, array $query = []): array;
 
+  /**
+   * Lists the workflows that qualify as chat models.
+   *
+   * A workflow qualifies when it is active and contains a Chat Trigger with
+   * "Make Chat Publicly Available" switched on — an inactive or non-public
+   * trigger has no registered webhook and cannot answer.
+   *
+   * @return array<string, array{label: string, webhook_id: string}>
+   *   Keyed by workflow id.
+   */
+  public function listChatWorkflows(): array;
+
+  /**
+   * Sends one chat message to a workflow's chat webhook and returns the reply.
+   *
+   * @param string $workflow_id
+   *   The workflow to talk to; must be one listChatWorkflows() returned.
+   * @param string $session_id
+   *   The conversation key; the workflow's memory node threads on it.
+   * @param string $message
+   *   The user's message.
+   * @param array $metadata
+   *   Arbitrary context the workflow may read as {{ $json.metadata }}.
+   *
+   * @return string
+   *   The agent's answer.
+   *
+   * @throws \RuntimeException
+   *   When the workflow is unknown, unreachable, or answers with nothing.
+   */
+  public function chatSend(string $workflow_id, string $session_id, string $message, array $metadata = []): string;
+
 }

@@ -128,6 +128,81 @@ class N8nClient implements N8nClientInterface {
   }
 
   /**
+   * {@inheritdoc}
+   *
+   * The addressable unit is the CHAT TRIGGER, not the workflow: one workflow
+   * can carry several public chat triggers, each with its own registered
+   * webhook (proven live — two "doors" into one flow, e.g. a public persona
+   * and an admin persona sharing an agent). The common single-trigger case
+   * keeps the plain workflow id as the model id; additional triggers get
+   * "workflow::webhook" ids and a door-name suffix on the label.
+   */
+  public function listChatWorkflows(): array {
+    $models = [];
+    $result = $this->request('GET', '/api/v1/workflows', [
+      'active' => 'true',
+      'excludePinnedData' => 'true',
+      'limit' => 100,
+    ]);
+    foreach ($result['data'] ?? [] as $workflow) {
+      $doors = [];
+      foreach ($workflow['nodes'] ?? [] as $node) {
+        if (($node['type'] ?? '') !== '@n8n/n8n-nodes-langchain.chatTrigger') {
+          continue;
+        }
+        // Active is not enough: the chat webhook only registers when the
+        // trigger is public. A non-public trigger would 404.
+        if (empty($node['parameters']['public']) || empty($node['webhookId'])) {
+          continue;
+        }
+        $doors[] = $node;
+      }
+      $label = $workflow['name'] ?? $workflow['id'];
+      foreach ($doors as $i => $node) {
+        $model_id = $i === 0 ? $workflow['id'] : $workflow['id'] . '::' . $node['webhookId'];
+        $models[$model_id] = [
+          // The Chat Hub agent name, when set, is the human-facing name.
+          'label' => ($node['parameters']['agentName'] ?? $label)
+          . (count($doors) > 1 ? ' — ' . $node['name'] : ''),
+          'webhook_id' => $node['webhookId'],
+        ];
+      }
+    }
+
+    return $models;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function chatSend(string $workflow_id, string $session_id, string $message, array $metadata = []): string {
+    $models = $this->listChatWorkflows();
+    if (!isset($models[$workflow_id])) {
+      throw new \RuntimeException(sprintf('Workflow %s is not an available chat model — it may be inactive or its chat trigger not public.', $workflow_id));
+    }
+
+    // The chat webhook is its own surface: no API key travels with this call,
+    // and agents can be slow, so the floor is higher than the API timeout.
+    $response = $this->httpClient->request('POST', $this->getBaseUrl() . '/webhook/' . $models[$workflow_id]['webhook_id'] . '/chat', [
+      'json' => [
+        'action' => 'sendMessage',
+        'sessionId' => $session_id,
+        'chatInput' => $message,
+        'metadata' => $metadata ?: new \stdClass(),
+      ],
+      'timeout' => max((int) ($this->getConfig()->get('timeout') ?: self::DEFAULT_TIMEOUT), 60),
+      'allow_redirects' => FALSE,
+    ]);
+
+    $decoded = json_decode((string) $response->getBody(), TRUE);
+    if (!is_array($decoded) || !array_key_exists('output', $decoded)) {
+      throw new \RuntimeException('The n8n workflow answered without an "output" field — name the last node\'s response field "output".');
+    }
+
+    return (string) $decoded['output'];
+  }
+
+  /**
    * Turns a transport exception into something an admin can act on.
    *
    * The status code is safe to log; the request headers carry the key and are

@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Chat with an n8n agent through Drupal's chat block: `chat()` posts the newest message to the workflow's chat webhook with a stable session id, so the agent's own memory threads the conversation.
+- Model discovery: every active workflow whose chat trigger is publicly available appears as a model, one model per trigger — a workflow with two public chat triggers is two models, labelled by door.
+- Connection setting and spec for an optional assistant tag, narrowing discovery to the workflows meant for the site (`features/assistant-sync.feature`).
+
+### Changed
+
+- **BREAKING (spec only):** the module targets agent-backed assistants exclusively — the AI module's current architecture; no legacy-path support, and no streaming, which that pipeline cannot deliver.
+- The README, features and agent docs now reflect the proven core loop, the trigger-is-the-door model, and the README-first spec flow; the parked webform feature moved out of the spec.
+
+### Removed
+
+- `features/webform-submit.feature` — parked; Webform's stock Remote Post handler plus ECA already cover the use case.
+
 ## [0.1.0] - 2026-07-15
 
 ### Fixed

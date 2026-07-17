@@ -5,8 +5,16 @@
 # every provider — but when n8n is the provider they are INERT. Two sets of
 # instructions would fight, and n8n's must win, because n8n is where the agent runs.
 #
+# Under the hood, Drupal's assistant pipeline builds a system prompt from the
+# assistant's companion agent and hands it to the provider on every call. This
+# provider drops it on the floor, deliberately. That is what these scenarios pin.
+#
 # This is the most surprising thing about the module, so it is specified rather than
 # left to documentation. See README "Settings that intentionally do nothing".
+#
+# Open question, deliberately NOT specified yet: what happens when an admin attaches
+# Drupal tools to the companion agent (the one misconfiguration that makes two
+# brains fight). Warn, strip, or refuse — decided when we get there, not guessed.
 #
 # "Echo Agent" hands back exactly what it received, which is how we can assert what
 # we did NOT send.
@@ -32,9 +40,8 @@ Feature: n8n owns the prompt, the model, and the memory
     When a visitor sends "hello" to the assistant "Helper"
     Then n8n did not receive the system prompt "You are a pirate"
 
-  # The agent already did its own tool calling before we ever see a reply. Forwarding
-  # Drupal's tool definitions would invite two agents to fight over one conversation.
-  Scenario: Turning on function calling sends no tools to n8n
-    Given the assistant "Helper" has function calling enabled
+  # The agent already did its own tool calling before we ever see a reply. Whatever
+  # the pipeline sends, no tool definitions may reach n8n.
+  Scenario: No tool definitions reach n8n
     When a visitor sends "hello" to the assistant "Helper"
     Then n8n received no tool definitions

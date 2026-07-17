@@ -287,4 +287,225 @@ class N8nClientTest extends UnitTestCase {
     $this->assertSame([], $client->request('GET', '/api/v1/workflows'));
   }
 
+  /**
+   * A workflow listing as n8n returns it, shaped for the discovery tests.
+   *
+   * @param array $workflows
+   *   Workflow stubs: [id, name, nodes[]].
+   */
+  protected function workflowListing(array $workflows): Response {
+    return new Response(200, [], json_encode(['data' => $workflows]));
+  }
+
+  /**
+   * A public chat trigger node, the way the REST payload carries it.
+   */
+  protected function chatTrigger(string $webhook_id, array $parameters = ['public' => TRUE], string $name = 'When chat message received'): array {
+    return [
+      'type' => '@n8n/n8n-nodes-langchain.chatTrigger',
+      'name' => $name,
+      'webhookId' => $webhook_id,
+      'parameters' => $parameters,
+    ];
+  }
+
+  /**
+   * Discovery keeps only public chat triggers and asks n8n for active only.
+   *
+   * @covers ::listChatWorkflows
+   */
+  public function testDiscoveryFiltersToPublicChatTriggers(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        [
+          'id' => 'wf1',
+          'name' => 'Echo Agent',
+          'nodes' => [$this->chatTrigger('hook-1')],
+        ],
+        [
+          'id' => 'wf2',
+          'name' => 'Private Agent',
+          'nodes' => [$this->chatTrigger('hook-2', ['public' => FALSE])],
+        ],
+        [
+          'id' => 'wf3',
+          'name' => 'Webhook Only',
+          'nodes' => [
+            [
+              'type' => 'n8n-nodes-base.webhook',
+              'name' => 'Webhook',
+              'webhookId' => 'hook-3',
+              'parameters' => [],
+            ],
+          ],
+        ],
+      ]),
+    ]);
+
+    $models = $client->listChatWorkflows();
+
+    $this->assertSame(['wf1'], array_keys($models));
+    $this->assertSame('Echo Agent', $models['wf1']['label']);
+    $this->assertSame('hook-1', $models['wf1']['webhook_id']);
+    // The exclusion of inactive workflows happens in the query, not in PHP.
+    parse_str($this->history[0]['request']->getUri()->getQuery(), $query);
+    $this->assertSame('true', $query['active']);
+  }
+
+  /**
+   * The Chat Hub agent name, when set, wins over the workflow name.
+   *
+   * @covers ::listChatWorkflows
+   */
+  public function testChatHubAgentNameWinsAsTheLabel(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        [
+          'id' => 'wf1',
+          'name' => 'boring-internal-name',
+          'nodes' => [
+            $this->chatTrigger('hook-1', [
+              'public' => TRUE,
+              'agentName' => 'Concierge',
+            ]),
+          ],
+        ],
+      ]),
+    ]);
+
+    $this->assertSame('Concierge', $client->listChatWorkflows()['wf1']['label']);
+  }
+
+  /**
+   * One workflow with two public chat triggers is two models, not one.
+   *
+   * Proven live: each public trigger registers its own webhook and answers
+   * independently — the trigger is the door, the workflow is the building.
+   *
+   * @covers ::listChatWorkflows
+   */
+  public function testEachPublicChatTriggerIsItsOwnModel(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        [
+          'id' => 'wf1',
+          'name' => 'Two Doors',
+          'nodes' => [
+            $this->chatTrigger('hook-front', ['public' => TRUE], 'Front Door'),
+            $this->chatTrigger('hook-admin', ['public' => TRUE], 'Admin Door'),
+          ],
+        ],
+      ]),
+    ]);
+
+    $models = $client->listChatWorkflows();
+
+    $this->assertCount(2, $models);
+    // The first door keeps the plain workflow id, so the common single-trigger
+    // case never carries a composite id.
+    $this->assertSame('hook-front', $models['wf1']['webhook_id']);
+    $this->assertSame('hook-admin', $models['wf1::hook-admin']['webhook_id']);
+    $this->assertSame('Two Doors — Front Door', $models['wf1']['label']);
+    $this->assertSame('Two Doors — Admin Door', $models['wf1::hook-admin']['label']);
+  }
+
+  /**
+   * The chat POST carries the contract and goes to the trigger's chat URL.
+   *
+   * @covers ::chatSend
+   */
+  public function testChatSendPostsTheChatContract(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'Echo Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], '{"output":"hello back"}'),
+    ]);
+
+    $reply = $client->chatSend('wf1', 'session-abc', 'hello', ['source' => 'drupal']);
+
+    $this->assertSame('hello back', $reply);
+    $request = $this->history[1]['request'];
+    $this->assertSame('/webhook/hook-1/chat', $request->getUri()->getPath());
+    $body = json_decode((string) $request->getBody(), TRUE);
+    $this->assertSame('sendMessage', $body['action']);
+    $this->assertSame('session-abc', $body['sessionId']);
+    $this->assertSame('hello', $body['chatInput']);
+    $this->assertSame(['source' => 'drupal'], $body['metadata']);
+  }
+
+  /**
+   * The admin API key never travels to the chat webhook.
+   *
+   * The webhook is a separate, differently-authenticated surface; leaking the
+   * management key to it would hand chat visitors an admin credential.
+   *
+   * @covers ::chatSend
+   */
+  public function testChatSendDoesNotLeakTheApiKey(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'Echo Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], '{"output":"ok"}'),
+    ]);
+
+    $client->chatSend('wf1', 's', 'hi');
+
+    $this->assertFalse($this->history[1]['request']->hasHeader('X-N8N-API-KEY'));
+  }
+
+  /**
+   * An unknown or unlisted workflow refuses before reaching the network.
+   *
+   * @covers ::chatSend
+   */
+  public function testChatSendRefusesAnUnknownModel(): void {
+    $client = $this->buildClient([$this->workflowListing([])]);
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessageMatches('/not an available chat model/');
+    $client->chatSend('nope', 's', 'hi');
+  }
+
+  /**
+   * An answer without an output field is an error, not an empty bubble.
+   *
+   * A workflow whose last node forgot to name its field "output" — or a
+   * misconfigured streaming trigger returning an empty 200 — must surface
+   * loudly rather than render silence.
+   *
+   * @covers ::chatSend
+   */
+  public function testChatSendRejectsAnAnswerWithoutOutput(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'Echo Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], '{"data":"wrong shape"}'),
+    ]);
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessageMatches('/"output"/');
+    $client->chatSend('wf1', 's', 'hi');
+  }
+
+  /**
+   * Agents are slow; the chat call gets a floor of 60 seconds.
+   *
+   * @covers ::chatSend
+   */
+  public function testChatTimeoutFloorIsSixtySeconds(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'Echo Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], '{"output":"ok"}'),
+    ], ['timeout' => 5]);
+
+    $client->chatSend('wf1', 's', 'hi');
+
+    $this->assertSame(60, $this->history[1]['options']['timeout']);
+  }
+
 }

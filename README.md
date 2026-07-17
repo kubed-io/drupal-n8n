@@ -5,16 +5,17 @@ Use your n8n AI agents as Drupal AI Assistants. Your agent — with its own mode
 [![🧪 Tests](https://github.com/kubed-io/drupal-n8n/actions/workflows/tests.yml/badge.svg)](https://github.com/kubed-io/drupal-n8n/actions/workflows/tests.yml)
 [![🛡️ Quality](https://github.com/kubed-io/drupal-n8n/actions/workflows/quality.yml/badge.svg)](https://github.com/kubed-io/drupal-n8n/actions/workflows/quality.yml)
 [![🔗 Integration](https://github.com/kubed-io/drupal-n8n/actions/workflows/integration.yml/badge.svg)](https://github.com/kubed-io/drupal-n8n/actions/workflows/integration.yml)
-[![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](LICENSE)
+[![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](LICENSE.txt)
 [![Drupal](https://img.shields.io/badge/Drupal-10--11-0678BE?logo=drupal&logoColor=white)](https://www.drupal.org)
 [![PHP](https://img.shields.io/badge/PHP-%E2%89%A58.3-777bb4?logo=php&logoColor=white)](composer.json)
 
 > **Status — this README is the specification.** It was written before the code, and
 > it describes the finished product so that the code has something to be measured
-> against. Today the **connection** is real: install the modules, set a URL and a
-> key, and **Test connection** works from the UI and from drush. Everything past
-> that — model discovery, chatting with an agent, the session bridge, the webform
-> handler — is specified here and in [`features/`](features/), but not yet built.
+> against. Today the **core loop is proven live**: the connection, model discovery,
+> chatting with an n8n agent through Drupal's chat block, and the session bridge all
+> work on a real cluster — see the proof-of-concept in
+> [`saga/Chapter_2_The_Drive.md`](saga/Chapter_2_The_Drive.md). What remains before a
+> release is hardening: error mapping, caching, tests, and the tag-sync convenience.
 > Follow along in [`saga/`](saga/).
 
 ---
@@ -50,12 +51,14 @@ Drupal's AI ecosystem has two words that sound alike and mean very different thi
 
 | | What it is | n8n equivalent |
 |---|---|---|
-| **AI Assistant** | The orchestrator a user talks to. Holds a provider + model, a prompt, a history policy, and permissions. | **An n8n AI Agent** ✅ |
-| **AI Agent** | A small, taskable unit — roughly "use one tool to do one job". Assistants delegate to these. | An n8n **tool** node |
+| **AI Assistant** | What a user talks to. Holds a provider + model, a history policy, and permissions — the chat box's identity. | **An n8n AI Agent** ✅ |
+| **AI Agent** | The orchestration unit behind an assistant: a system prompt plus tools, driven against a raw model. | The *inside* of an n8n agent |
 
-> **An n8n agent is a Drupal assistant.** It is *not* a Drupal agent.
+> **An n8n agent is a Drupal assistant.** Its brain is never a Drupal agent's brain.
 
-This isn't a preference — it's what the two things are. Your n8n agent already has a model, a memory, and a toolbelt. That's an assistant. A Drupal agent is the *inside* of one.
+Your n8n agent already has a model, a memory, and a toolbelt. Handing it to Drupal's agent machinery as a raw model would mean two agents fighting over one conversation — so this provider makes sure that can't happen.
+
+One mechanical note, because current versions of the AI module create a **companion agent entity** behind every assistant: with n8n as the provider that companion is deliberately **empty** — no tools, a passthrough. Your message goes through it untouched, in exactly one call, and the n8n agent does all the thinking. Don't attach Drupal tools to it; that's the one way to recreate the two-brains fight.
 
 ### Who owns what
 
@@ -90,11 +93,46 @@ This is a high-level showcase. Each feature links to its **executable specificat
 
 ### Your n8n agents appear as models
 
-Point Drupal at n8n, and every workflow with a **Chat Trigger** becomes a selectable model, listed by its n8n name. Workflows without a chat trigger — your webhook jobs, your cron flows, your sub-workflows — are filtered out, because you can't hold a conversation with them.
+Point Drupal at n8n, and your chat agents become selectable models, listed by name right next to `gpt-4o`. Nobody presses a sync button: the list is read **live** from n8n's REST API every time it's built. Make an agent in n8n and it's there; rename it and the dropdown follows; delete it and it's gone.
 
-The list is read live from n8n's REST API and cached. n8n stays the source of truth: rename an agent in n8n and the dropdown follows. Nothing about your workflows is copied into Drupal's config.
+A workflow qualifies when **all three** are true — and each rules out a different way of not being able to answer:
+
+| Requirement | Why |
+|---|---|
+| It starts with a **Chat Trigger** | You can't hold a conversation with a cron job |
+| The workflow is **active** | n8n only serves a production webhook while a workflow is active |
+| The trigger's **Make Chat Publicly Available** is on | Otherwise n8n registers no webhook at all, and it answers 404 |
+
+That last one is the trap worth knowing: **an active workflow can still have no reachable chat webhook.** "Active" is not enough. Use `drush n8n:models --all` to see every workflow with the reason it was included or left out.
+
+Precisely speaking, a "model" is a **chat trigger** — the trigger is the door, the workflow is the building. One workflow can carry several public chat triggers, and each becomes its own model, labelled by its door: build one agent with a `— Front Door` for customers and an `— Admin Door` for staff, and place them as two different assistants. The everyday one-trigger workflow just shows up under its own name.
+
+A model doesn't have to contain an AI Agent node, either. This module never looks inside. A chat trigger wired to a Code node is a perfectly valid model.
+
+Nothing about your workflows is copied into Drupal's config. The only trace is the workflow id in the assistant's **model** field — exactly where `gpt-4o` would sit.
 
 📋 spec: [`features/model-discovery.feature`](features/model-discovery.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php), [`src/N8nClient.php`](src/N8nClient.php)
+
+### Tag it in n8n, chat with it in Drupal
+
+Picking a model still means making an assistant by hand. If you'd rather publish an agent to your site by **tagging it**, set an **Assistant tag** in the connection settings and tag your workflows in n8n. `drush n8n:sync` then makes sure there's an assistant for each one.
+
+Sync decides **which assistants exist** — and nothing else. It never copies behaviour in either direction: your roles, greeting and error messages are never pushed to n8n, and n8n's prompt, model, memory and tools are never pulled into Drupal. Same ownership split as everywhere else, applied to lifecycle.
+
+| What you do | What happens |
+|---|---|
+| Tag a workflow | An assistant appears, wired to it |
+| Rename it in n8n | The assistant's label follows — matched on workflow id, so it's never duplicated |
+| **Remove the tag** | The assistant is **disabled, not deleted** — its chat box stops rendering, and everything you configured survives |
+| Re-add the tag | It's enabled again, settings intact |
+| Delete the assistant in Drupal | The workflow is **untagged** in n8n so it stays gone. The workflow itself is untouched |
+
+Two rules keep this predictable:
+
+- **Sync only manages assistants it created.** They're stamped with the workflow they came from. An assistant you built by hand is never disabled, deleted, or overwritten by sync — even if it points at the same workflow.
+- **Sync never overwrites what Drupal owns.** Change the roles or the greeting on a synced assistant and the next sync leaves them alone.
+
+📋 spec: [`features/assistant-sync.feature`](features/assistant-sync.feature)
 
 ### Chat with an n8n agent
 
@@ -125,6 +163,14 @@ This is the single most surprising thing about the module, so it is stated plain
 
 📋 spec: [`features/prompt-ownership.feature`](features/prompt-ownership.feature)
 
+### One agent, many personas *(planned)*
+
+Because several assistants can point at the same model, one n8n agent can serve many faces of your site — and the **metadata** each message carries is what tells them apart. Every chat POST already includes metadata; the plan is to let each assistant contribute its own (its name, its instructions, custom key/values), so a *generic* agent flow in n8n can read `metadata.instructions` and adapt: one workflow, a formal persona on the support page, a playful one on the blog.
+
+This is also where the assistant form's inert fields earn their keep, optionally: fill in **Instructions** and it travels as metadata for your workflow to use — or leave it empty and the workflow's own prompt stands alone. Nothing is forwarded unless you switch it on.
+
+> **Status:** the metadata channel is proven end-to-end; the per-assistant configuration is designed but not yet specified. This paragraph is the idea's front door, per [how a feature becomes a feature](features/README.md#how-a-feature-becomes-a-feature).
+
 ### Not an agent brain (on purpose)
 
 n8n appears wherever an **assistant** picks a provider. It appears **nowhere** an **agent** does — not in `ai_agents`, not in AI-powered field automators, not in the CKEditor AI plugins. Those surfaces need a raw model with function calling; an n8n agent isn't one.
@@ -140,14 +186,6 @@ If n8n is unreachable, the key is wrong, or a workflow isn't active, the chat bo
 An **inactive workflow** is the most common one: n8n only serves a production chat webhook while the workflow is active.
 
 📋 spec: [`features/connection-failure.feature`](features/connection-failure.feature)
-
-### Forms submit to n8n
-
-The `n8n_webform` submodule adds an **n8n** handler to [Webform](https://www.drupal.org/project/webform). Instead of pasting a webhook URL into Webform's generic Remote Post handler, you pick the target n8n workflow from a list, and authentication is filled in from the connection you already configured.
-
-It extends Webform's own Remote Post handler rather than replacing it, so everything Webform already does — conditions, token replacement, error handling, response mapping back into the submission — works unchanged.
-
-📋 spec: [`features/webform-submit.feature`](features/webform-submit.feature) — **not built yet**; the spec is `@todo` until we answer whether stock Remote Post already does the job.
 
 ### Drupal answers back
 
@@ -189,6 +227,7 @@ Configure at **Configuration → AI → n8n** (`/admin/config/ai/n8n`). Shared b
 |---|---|
 | **n8n URL** | Base URL of your n8n instance, e.g. `https://n8n.example.com`. No trailing slash. |
 | **API Key** | Your n8n API key, selected from the [Key](https://www.drupal.org/project/key) module. Sent as `X-N8N-API-KEY`. Stored by Key, never echoed back. Used to list workflows — *not* to post chat messages. |
+| **Assistant tag** | Optional. The n8n tag that marks a workflow as meant for this site. Leave it empty and every qualifying workflow is offered as a model. Set it and the list narrows to tagged workflows — and `drush n8n:sync` can keep an assistant per tag. |
 | **Test connection** | Calls `GET /api/v1/workflows?limit=1` and reports what it finds. Verifies the URL and the key in one click. |
 
 The API key is managed by the **Key** module rather than by this module, so it can live in a file, an environment variable, or a secrets manager — whatever your site already uses. This module never handles a raw secret of its own.
@@ -227,26 +266,12 @@ The AI Assistant form is shared across all providers, so it shows fields that ar
 
 | Field | Why it's ignored | Configure instead |
 |---|---|---|
-| **System Prompt**, **Pre-action prompt**, **Instructions**, **Pre-prompt instructions** | Your agent has its own system prompt. | The AI Agent node in n8n |
+| **Instructions** | They feed the companion agent's system prompt — which this provider drops, because your agent has its own. | The AI Agent node in n8n |
 | **History context length** | Only the newest message is sent; n8n holds the history. | The Chat Memory node in n8n |
-| **Use function calling** | The n8n agent does its own tool calling. Toggling this changes nothing. | Tool nodes in n8n |
-| **AI Agent** | Delegating to a Drupal agent would bypass n8n entirely. | — |
+| **Agents to use / RAG** | The n8n agent does its own tool calling. Attaching Drupal tools here is the one misconfiguration that makes two brains fight — leave them off. | Tool nodes in n8n |
 | **LLM Configuration** (temperature, etc.) | The model lives in n8n. | The Chat Model node in n8n |
 
 > **Rule of thumb:** if a setting describes *how the agent thinks*, it belongs in n8n. If it describes *who can talk to it and where*, it belongs in Drupal.
-
----
-
-### Webform handler
-
-Add at **Structure → Webforms → [your form] → Settings → Emails / Handlers → Add handler → n8n**.
-
-| Setting | Description |
-|---|---|
-| **Target** | The n8n workflow to submit to, chosen from a list of your form triggers and webhooks. |
-| **Trigger on** | Which submission states POST to n8n — created, updated, deleted. Webform's own semantics. |
-
-Everything else is Webform's Remote Post handler: conditions, custom request data, tokens, and mapping the n8n response back into the submission all behave exactly as documented by Webform.
 
 ---
 
@@ -270,11 +295,28 @@ drush n8n:test
 ### Inspect what Drupal can see
 
 ```sh
-# List the workflows that qualify as models (chat trigger + active)
+# List the workflows that qualify as models (chat trigger + active + public)
 drush n8n:models
 
 # List every workflow n8n returns, with the reason each was included or filtered out
 drush n8n:models --all
+```
+
+### Publish tagged agents as assistants
+
+```sh
+# Set the tag that marks a workflow as meant for this site
+drush n8n:set-tag drupal
+
+# Make sure there is an assistant for every tagged workflow.
+# Creates what is missing, re-enables what came back, disables what lost its tag.
+drush n8n:sync
+
+# Preview without writing anything
+drush n8n:sync --dry-run
+
+# Make one assistant from one workflow, tag or no tag
+drush n8n:assistant <workflow-id>
 ```
 
 ### Smoke-test an agent
@@ -293,11 +335,10 @@ drush n8n:chat <workflow-id> "and what did I just ask?" --session=my-test-sessio
 
 | Module | What it does | Depends on |
 |---|---|---|
-| **`n8n`** | The connection: URL, API key, REST client, Test connection, drush commands. Ships no features of its own. | `key` |
+| **`n8n`** | The connection: URL, API key, assistant tag, REST client, Test connection, drush commands. Ships no features of its own. | `key` |
 | **`ai_provider_n8n`** | n8n agents as Drupal AI Assistants. The headline. | `n8n`, `ai` |
-| **`n8n_webform`** | Webform submissions → n8n. | `n8n`, `webform` |
 
-Enable only what you need. `ai_provider_n8n` and `n8n_webform` are independent of each other and share the one connection.
+Enable only what you need; everything shares the one connection.
 
 ---
 
@@ -307,10 +348,10 @@ Enable only what you need. `ai_provider_n8n` and `n8n_webform` are independent o
 |---|---|---|
 | **Drupal** | 10.3+ / 11 | |
 | **PHP** | 8.3+ | |
-| **[AI](https://www.drupal.org/project/ai)** | ^1.1 | Required by `ai_provider_n8n`. |
+| **[AI](https://www.drupal.org/project/ai)** | ^1.4 | Required by `ai_provider_n8n`. |
+| **[AI Agents](https://www.drupal.org/project/ai_agents)** | ^1.1 | The AI module requires it to create assistants — every assistant is agent-backed now. |
 | **[Key](https://www.drupal.org/project/key)** | ^1.0 | Stores the n8n API key. |
-| **[Webform](https://www.drupal.org/project/webform)** | ^6.2 | Only for `n8n_webform`. |
-| **n8n** | 1.x | Needs at least one **active** workflow with a Chat Trigger. |
+| **n8n** | 1.100+ / 2.x | Needs at least one **active** workflow whose Chat Trigger is **publicly available**. |
 
 For the chat UI, enable `ai_chatbot` and `ai_assistant_api` — both ship **inside** the AI module, so there's nothing extra to download.
 
@@ -324,9 +365,11 @@ A few things people reasonably expect that this module does **not** do, with wha
 |---|---|
 | Embed n8n's own chat widget | That's [`n8n_chat`](https://www.drupal.org/project/n8n_chat) — a JS widget that talks to n8n from the browser and bypasses Drupal AI. Different tool for a different job. |
 | Use an n8n agent for CKEditor AI, field automators, or Drupal agents | Not supported by design — those need a raw LLM. Keep a real provider configured alongside. |
-| Stream tokens as they generate | Not yet. Answers arrive complete. |
+| Let a Drupal assistant call n8n workflows as **tools** | That's MCP's job, not ours: give the workflow an [MCP Server Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger/) and point the [MCP Client](https://www.drupal.org/project/mcp_client) module at it. |
+| Stream tokens as they generate | Answers arrive complete. Drupal's assistant pipeline does not stream agent-backed assistants — a structural upstream limit, not a missing toggle here. |
+| Approval buttons / human-in-the-loop mid-run | n8n's Chat node only supports that on its **hosted** chat, not embedded clients like Drupal. Have the agent ask in plain text instead — its memory keeps the thread. |
 | Report token usage or cost | n8n runs the model; Drupal never sees the accounting. |
-| Trigger n8n from Drupal events (node saved, user created…) | Use [ECA](https://www.drupal.org/project/eca) — it already does this well. |
+| Trigger n8n from Drupal events — node saved, form submitted, user created… | Use [ECA](https://www.drupal.org/project/eca), or Webform's own Remote Post handler pointed at a webhook. Both already do this well. |
 
 ---
 

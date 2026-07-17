@@ -29,10 +29,11 @@ Feature: Conversations are threaded and isolated
     When the visitor sends "second" to the assistant "Helper"
     Then n8n received only the message "second"
 
-  # A privacy boundary this module owns. Drupal derives its thread id from the
-  # current user's id — and every anonymous visitor is user 0. If that reaches n8n
-  # unmodified, all anonymous visitors share one memory session and can read each
-  # other's conversation. See SECURITY.md and saga §9. This scenario is the guard.
+  # A privacy boundary. Chapter 1 feared Drupal's thread id was derived from the
+  # user id — with every anonymous visitor being user 0, that would have merged all
+  # anonymous conversations into one memory session. Reading the source disproved
+  # it: with history enabled, Drupal mints a random per-browser-session key. This
+  # scenario stays as the regression guard for exactly that upstream behaviour.
   Scenario: Two anonymous visitors do not share a conversation
     Given a visitor has sent "my secret" to the assistant "Helper"
     When a different anonymous visitor sends "hello" to the assistant "Helper"
