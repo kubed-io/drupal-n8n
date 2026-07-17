@@ -1015,6 +1015,43 @@ written** — the best possible outcome for a stop.
 
 ## 7. Session log
 
+- **2026-07-17, later — the first stop gets its pavement.** Perspective check
+  from Dr K first: **we are still at the first stop.** The drive is long; what
+  this stop is for is formulating the plan — building the mental model of the
+  whole trip while laying real pavement under the piece we're parked on. Laid
+  this session, all on PR #12:
+  - **The Drupal signature is now always-on** — the module's distinctive value
+    add, named by Dr K: every Drupal-originated message carries
+    `metadata.{source: drupal, site, assistant, instructions}`. The
+    conversation stays clean — one message, nothing else — while the signature
+    makes Drupal traffic identifiable and hands a generic n8n agent per-
+    assistant context. **The assistant form's fields become optional context an
+    agent MAY read, never orders** — which is what makes an assistant an
+    *overrideable implementation* of a model's chat trigger, and many:1 a
+    first-class pattern. `prompt-ownership.feature` merged into the new
+    `drupal-signature.feature`: "the prompt never reaches the conversation"
+    and "the prompt travels as metadata" are one contract, not two features.
+  - **The integration suite went from harness-only to real.** Fixture pack
+    preloaded through n8n's own API (control case): Echo, Canned (untagged),
+    Rename Me, Webhook Only, Inactive, Private, **Two Doors**, **Shop Bot**
+    (shopsite). Steps wired for admin-connection (Key-module Givens included),
+    model-discovery (the whole tag story), agent-exclusion's provider
+    surfaces, and the signature — file-level `@todo` dropped from all four;
+    only the scenarios needing a rendered page, a second LLM provider, or an
+    assistant entity remain tagged.
+  - **The @domain scenario is wired, not parked.** Probed first on the live
+    pod: `DomainNegotiationContext::setDomain()` activates config overrides
+    in-process — the answer to "CLI never negotiates a domain." CI installs
+    `drupal/domain ^3.0`, creates a default + `shop` domain, writes the tag
+    override into the `domain.shop` collection via
+    `domain.config_factory_override`, and asserts Shop Bot appears while Echo
+    Agent does not. Multisite edge cases now grow up inside the suite instead
+    of arriving later as surprises.
+  - Also learned by breaking it: the live site's API key **refuses writes**
+    — preload validation 403'd on the real cluster, which is Ch1's read-only
+    key doing its job. CI's minted owner key writes fine; the script now says
+    so when handed a read-only key, and aborts loudly on the first failed
+    create instead of cascading 404s.
 - **2026-07-17 — the tag becomes the map, and auto-gen is cut.** Dr K settled
   two things the POC had left fuzzy. **(1) No auto-generated assistants.**
   Turning a model into an assistant is a design choice — one model can back

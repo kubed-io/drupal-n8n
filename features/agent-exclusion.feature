@@ -38,7 +38,6 @@
 # future Drupal release changes capability filtering, this is the test that goes red
 # — and it should, loudly.
 
-@todo
 Feature: n8n is offered to assistants, never to agents
   As a Drupal admin
   I want n8n absent from every surface that needs a raw model
@@ -52,7 +51,7 @@ Feature: n8n is offered to assistants, never to agents
     Then "n8n" is offered as a provider
 
   Scenario Outline: n8n is not offered where a raw model is required
-    When the admin views the provider choices for an operation requiring <capability>
+    When the admin views the provider choices for an operation requiring "<capability>"
     Then "n8n" is not offered as a provider
 
     Examples:
@@ -69,9 +68,11 @@ Feature: n8n is offered to assistants, never to agents
     And the n8n provider declares no model capabilities
 
   # The two provider kinds must coexist: a site runs a real LLM for its Drupal-side
-  # agents AND n8n for its assistants, at the same time, without interfering.
+  # agents AND n8n for its assistants, at the same time, without interfering. Needs
+  # a second provider module in the harness — hence the tag.
+  @todo
   Scenario: A conventional LLM provider remains available for agents
     Given a conventional LLM provider is configured
-    When the admin views the provider choices for an operation requiring tools
+    When the admin views the provider choices for an operation requiring "tools"
     Then the conventional LLM provider is offered as a provider
     And "n8n" is not offered as a provider

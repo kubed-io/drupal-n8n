@@ -1,8 +1,8 @@
 # The headline use case: a visitor types in Drupal's chat box and the answer comes
 # from an n8n agent. This is the whole product in one feature.
 #
-# What lives here is the round trip. Memory has its own feature; prompt ownership has
-# its own feature; failures have their own feature.
+# What lives here is the round trip. Memory has its own feature; the Drupal
+# signature has its own feature; failures have their own feature.
 
 @todo
 Feature: Chat with an n8n agent

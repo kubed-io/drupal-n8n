@@ -57,7 +57,7 @@ Violating one breaks the product's thesis, not just its style.
 
 - **n8n owns the brain** — model, prompt, memory, tools. Never add a Drupal setting
   for something n8n owns. → [CONTRIBUTING § n8n owns the brain](CONTRIBUTING.md#n8n-owns-the-brain--never-take-it-back)
-  · spec: [prompt-ownership.feature](features/prompt-ownership.feature)
+  · spec: [drupal-signature.feature](features/drupal-signature.feature)
 - **n8n is an assistant, never an agent.** We support `chat` and decline the
   `ChatTools` capability; Drupal's own filtering does the rest. **Writing a
   `hook_form_alter` to hide n8n means you broke the contract instead of fixing it.**

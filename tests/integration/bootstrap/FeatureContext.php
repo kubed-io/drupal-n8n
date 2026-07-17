@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\n8n\Integration;
 
 use Behat\Behat\Context\Context;
+use Drupal\Tests\n8n\Integration\Support\DrupalEvalTrait;
 use Drupal\Tests\n8n\Integration\Support\DrushTrait;
 use Drupal\Tests\n8n\Integration\Support\N8nApiTrait;
 use PHPUnit\Framework\Assert;
@@ -12,9 +13,10 @@ use PHPUnit\Framework\Assert;
 /**
  * Step definitions for the n8n integration suite.
  *
- * Only the harness steps are wired today. Every other feature is tagged @todo and
- * skipped by behat.dist.yml — those files are the specification for work not yet
- * done, and each loses its tag as its steps land here.
+ * Wired: harness, admin-connection, model-discovery incl. the site tag and the
+ * @domain scenario, agent-exclusion's provider-surface checks, and the Drupal
+ * signature. Still @todo: everything needing an ai_assistant entity in the loop
+ * — those land when the suite grows an assistant fixture.
  *
  * Keep the parentheses out of step text: a literal ( or ) becomes a regex group,
  * the step silently goes undefined, and the suite fails while looking green.
@@ -22,7 +24,36 @@ use PHPUnit\Framework\Assert;
 class FeatureContext implements Context {
 
   use DrushTrait;
+  use DrupalEvalTrait;
   use N8nApiTrait;
+
+  /**
+   * The models the provider offered when the admin last listed them.
+   *
+   * @var array<string, string>
+   */
+  protected array $models = [];
+
+  /**
+   * Provider facts captured by the inspection steps.
+   *
+   * @var array
+   */
+  protected array $providerFacts = [];
+
+  /**
+   * The parsed payload the Echo Agent handed back on the last provider chat.
+   *
+   * @var array
+   */
+  protected array $echo = [];
+
+  /**
+   * The Key entity holding the valid minted API key.
+   */
+  protected const VALID_KEY = 'behat_n8n_key';
+
+  // ── Harness ────────────────────────────────────────────────────────────────
 
   /**
    * Asserts the module under test is enabled on the site.
@@ -65,6 +96,442 @@ class FeatureContext implements Context {
       $this->n8nIsHealthy(),
       sprintf('n8n should be healthy at %s. If this fails the container never came up.', $this->n8nUrl()),
     );
+  }
+
+  // ── The connection ─────────────────────────────────────────────────────────
+
+  /**
+   * Asserts the Key module is enabled — it is a hard dependency.
+   *
+   * @Given the key module is installed and enabled
+   */
+  public function theKeyModuleIsInstalledAndEnabled(): void {
+    $output = $this->drush('pm:list', '--status=enabled', '--filter=key', '--field=name');
+    Assert::assertStringContainsString('key', $output, 'The key module should be enabled.');
+  }
+
+  /**
+   * Creates a Key entity carrying the minted n8n API key.
+   *
+   * @Given a key holding a valid n8n API key was added to Drupal
+   */
+  public function aKeyHoldingAValidApiKeyExists(): void {
+    $this->createKeyEntity(self::VALID_KEY, $this->n8nApiKey());
+  }
+
+  /**
+   * @When the admin sets the n8n base URL
+   */
+  public function theAdminSetsTheBaseUrl(): void {
+    $this->drush('n8n:set-url', $this->n8nUrl());
+    Assert::assertSame(0, $this->drushExitCode(), $this->drushOutput());
+  }
+
+  /**
+   * @When the admin selects a key holding a valid n8n API key
+   */
+  public function theAdminSelectsTheValidKey(): void {
+    $this->createKeyEntity(self::VALID_KEY, $this->n8nApiKey());
+    $this->drush('n8n:set-key', self::VALID_KEY);
+    Assert::assertSame(0, $this->drushExitCode(), $this->drushOutput());
+  }
+
+  /**
+   * @When the admin tests the connection
+   */
+  public function theAdminTestsTheConnection(): void {
+    $this->drush('n8n:test');
+  }
+
+  /**
+   * @Then the connection is verified
+   */
+  public function theConnectionIsVerified(): void {
+    Assert::assertSame(0, $this->drushExitCode(), 'n8n:test should exit zero: ' . $this->drushOutput());
+    Assert::assertStringContainsString('Connected', $this->drushOutput());
+  }
+
+  /**
+   * @When the admin configures the connection with an invalid API key
+   */
+  public function theAdminConfiguresWithAnInvalidKey(): void {
+    $this->createKeyEntity('behat_bad_key', 'not-a-real-key');
+    $this->drush('n8n:set-url', $this->n8nUrl());
+    $this->drush('n8n:set-key', 'behat_bad_key');
+  }
+
+  /**
+   * @When the admin configures the connection with an unreachable host
+   */
+  public function theAdminConfiguresWithAnUnreachableHost(): void {
+    $this->createKeyEntity(self::VALID_KEY, $this->n8nApiKey());
+    $this->drush('n8n:set-url', 'http://localhost:59999');
+    $this->drush('n8n:set-key', self::VALID_KEY);
+  }
+
+  /**
+   * @Then the connection test reports a failure
+   */
+  public function theConnectionTestReportsAFailure(): void {
+    Assert::assertNotSame(0, $this->drushExitCode(), 'n8n:test should exit non-zero: ' . $this->drushOutput());
+  }
+
+  /**
+   * @When the admin configures and tests the connection with drush
+   */
+  public function theAdminConfiguresAndTestsWithDrush(): void {
+    $this->theAdminSetsTheBaseUrl();
+    $this->theAdminSelectsTheValidKey();
+    $this->theAdminTestsTheConnection();
+  }
+
+  /**
+   * @Then the command exits with a zero status
+   */
+  public function theCommandExitsZero(): void {
+    Assert::assertSame(0, $this->drushExitCode(), $this->drushOutput());
+  }
+
+  /**
+   * The gate every feature opens with: a working, verified connection.
+   *
+   * @Given the connection to n8n is configured and verified
+   */
+  public function theConnectionIsConfiguredAndVerified(): void {
+    $this->createKeyEntity(self::VALID_KEY, $this->n8nApiKey());
+    $this->drush('n8n:set-url', $this->n8nUrl());
+    $this->drush('n8n:set-key', self::VALID_KEY);
+    $this->drush('n8n:test');
+    Assert::assertSame(0, $this->drushExitCode(), 'The connection gate failed: ' . $this->drushOutput());
+  }
+
+  // ── The site tag ───────────────────────────────────────────────────────────
+
+  /**
+   * @Given the site tag is set to :tag
+   */
+  public function theSiteTagIsSetTo(string $tag): void {
+    $this->drush('config:set', 'n8n.settings', 'tag', $tag, '-y');
+    Assert::assertSame(0, $this->drushExitCode(), $this->drushOutput());
+  }
+
+  /**
+   * @Given the site tag is not set
+   */
+  public function theSiteTagIsNotSet(): void {
+    $this->theSiteTagIsSetTo('');
+  }
+
+  // ── Model discovery ────────────────────────────────────────────────────────
+
+  /**
+   * Control-case check on n8n's side: the fixture really carries the tag.
+   *
+   * @Given the :name workflow is tagged :tag in n8n
+   */
+  public function theWorkflowIsTagged(string $name, string $tag): void {
+    Assert::assertTrue(
+      $this->n8nWorkflowHasTag($name, $tag),
+      "Fixture '$name' should carry the '$tag' tag in n8n — did the preload run?",
+    );
+  }
+
+  /**
+   * @Given the :name workflow is not tagged :tag in n8n
+   */
+  public function theWorkflowIsNotTagged(string $name, string $tag): void {
+    Assert::assertFalse(
+      $this->n8nWorkflowHasTag($name, $tag),
+      "Fixture '$name' must NOT carry the '$tag' tag for this scenario to mean anything.",
+    );
+  }
+
+  /**
+   * @Given the :name workflow is renamed to :new_name in n8n
+   */
+  public function theWorkflowIsRenamed(string $name, string $new_name): void {
+    $this->n8nRenameWorkflow($name, $new_name);
+  }
+
+  /**
+   * @When the admin lists the available n8n models
+   */
+  public function theAdminListsTheModels(): void {
+    $this->models = $this->providerModels();
+  }
+
+  /**
+   * @Then :label is offered as a model
+   */
+  public function isOfferedAsAModel(string $label): void {
+    Assert::assertContains(
+      $label,
+      array_values($this->models),
+      "'$label' should be among the offered models. Got: " . json_encode(array_values($this->models)),
+    );
+  }
+
+  /**
+   * @Then :label is not offered as a model
+   */
+  public function isNotOfferedAsAModel(string $label): void {
+    Assert::assertNotContains(
+      $label,
+      array_values($this->models),
+      "'$label' must not be offered. Got: " . json_encode(array_values($this->models)),
+    );
+  }
+
+  /**
+   * @Then no workflow id appears in Drupal's configuration
+   */
+  public function noWorkflowIdAppearsInConfiguration(): void {
+    $workflow = $this->n8nWorkflowByName('Echo Agent');
+    Assert::assertNotNull($workflow, 'The Echo Agent fixture should exist.');
+    $hits = $this->drupalEvalJson(strtr(<<<'PHP'
+      $needle = NEEDLE;
+      $hits = [];
+      foreach (\Drupal::configFactory()->listAll('') as $name) {
+        $raw = json_encode(\Drupal::config($name)->getRawData());
+        if ($raw !== FALSE && str_contains($raw, $needle)) {
+          $hits[] = $name;
+        }
+      }
+      echo json_encode($hits);
+      PHP, ['NEEDLE' => var_export($workflow['id'], TRUE)]));
+    Assert::assertSame([], $hits, 'No config object may carry an n8n workflow id.');
+  }
+
+  // ── Multisite ──────────────────────────────────────────────────────────────
+
+  /**
+   * Creates the domains and writes the per-domain tag override.
+   *
+   * The override lives in the config COLLECTION domain.<id> and is written with
+   * domain.config_factory_override — the only API that works. Proven in
+   * saga/Chapter_1_Packing_the_Van.md §9.1; do not "simplify" this into a
+   * config object named domain.config.<id>.<name>: nothing reads that.
+   *
+   * @Given a domain :id overrides the site tag to :tag
+   */
+  public function aDomainOverridesTheSiteTag(string $id, string $tag): void {
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $storage = \Drupal::entityTypeManager()->getStorage('domain');
+      if (!$storage->load('behat_default')) {
+        $storage->create([
+          'id' => 'behat_default',
+          'name' => 'Behat default',
+          'hostname' => 'localhost',
+          'scheme' => 'http',
+          'status' => TRUE,
+          'weight' => 0,
+          'is_default' => TRUE,
+        ])->save();
+      }
+      if (!$storage->load(DOMAIN)) {
+        $storage->create([
+          'id' => DOMAIN,
+          'name' => DOMAIN,
+          'hostname' => DOMAIN . '.example.test',
+          'scheme' => 'http',
+          'status' => TRUE,
+          'weight' => 1,
+          'is_default' => FALSE,
+        ])->save();
+      }
+      \Drupal::service('domain.config_factory_override')
+        ->getOverrideEditable(DOMAIN, 'n8n.settings')
+        ->set('tag', TAG)
+        ->save();
+      echo json_encode(TRUE);
+      PHP, [
+        'DOMAIN' => var_export($id, TRUE),
+        'TAG' => var_export($tag, TRUE),
+      ]));
+  }
+
+  /**
+   * Lists models with the given domain active, the way a request on that
+   * hostname would see them.
+   *
+   * CLI never negotiates a domain — drush --uri does NOT populate the context,
+   * proven in saga Ch1 §9.1 — so the step activates the domain explicitly
+   * through domain.negotiation_context, which is the service that actually
+   * gates config overrides.
+   *
+   * @When the admin lists the available n8n models on the :id domain
+   */
+  public function theAdminListsTheModelsOnDomain(string $id): void {
+    $this->models = (array) $this->drupalEvalJson(strtr(<<<'PHP'
+      $domain = \Drupal::entityTypeManager()->getStorage('domain')->load(DOMAIN);
+      if ($domain === NULL) {
+        throw new \RuntimeException('No domain ' . DOMAIN);
+      }
+      \Drupal::service('domain.negotiation_context')->setDomain($domain);
+      \Drupal::configFactory()->reset('n8n.settings');
+      $models = \Drupal::service('ai.provider')->createInstance('n8n')->getConfiguredModels('chat');
+      echo json_encode($models);
+      PHP, ['DOMAIN' => var_export($id, TRUE)]));
+  }
+
+  // ── Provider surfaces ──────────────────────────────────────────────────────
+
+  /**
+   * @When the admin views the provider choices for an AI assistant
+   */
+  public function theAdminViewsAssistantProviderChoices(): void {
+    $this->providerFacts = (array) $this->drupalEvalJson(<<<'PHP'
+      $providers = \Drupal::service('ai.provider')->getProvidersForOperationType('chat');
+      echo json_encode(['providers' => array_keys($providers)]);
+      PHP);
+  }
+
+  /**
+   * @Then :provider is offered as a provider
+   */
+  public function isOfferedAsAProvider(string $provider): void {
+    Assert::assertContains(strtolower($provider), $this->providerFacts['providers'] ?? [], json_encode($this->providerFacts));
+  }
+
+  /**
+   * @Then :provider is not offered as a provider
+   */
+  public function isNotOfferedAsAProvider(string $provider): void {
+    Assert::assertNotContains(strtolower($provider), $this->providerFacts['providers'] ?? [], json_encode($this->providerFacts));
+  }
+
+  /**
+   * @When the admin views the provider choices for an operation requiring :capability
+   */
+  public function theAdminViewsCapabilityFilteredChoices(string $capability): void {
+    $map = [
+      'tools' => 'ChatTools',
+      'complex JSON' => 'ChatJsonOutput',
+      'structured response' => 'ChatStructuredResponse',
+      'image vision' => 'ChatWithImageVision',
+    ];
+    Assert::assertArrayHasKey($capability, $map, "Unknown capability '$capability' in the step table.");
+    $this->providerFacts = (array) $this->drupalEvalJson(strtr(<<<'PHP'
+      $providers = \Drupal::service('ai.provider')->getProvidersForOperationType(
+        'chat', TRUE, [\Drupal\ai\Enum\AiModelCapability::CAPABILITY],
+      );
+      echo json_encode(['providers' => array_keys($providers)]);
+      PHP, ['CAPABILITY' => $map[$capability]]));
+  }
+
+  /**
+   * @When the admin inspects the n8n provider
+   */
+  public function theAdminInspectsTheProvider(): void {
+    $this->providerFacts = (array) $this->drupalEvalJson(<<<'PHP'
+      $provider = \Drupal::service('ai.provider')->createInstance('n8n');
+      echo json_encode([
+        'operations' => $provider->getSupportedOperationTypes(),
+        'capabilities' => $provider->getSupportedCapabilities(),
+      ]);
+      PHP);
+  }
+
+  /**
+   * @Then the n8n provider supports the chat operation
+   */
+  public function theProviderSupportsChat(): void {
+    Assert::assertContains('chat', $this->providerFacts['operations'] ?? []);
+  }
+
+  /**
+   * @Then the n8n provider supports no other operation
+   */
+  public function theProviderSupportsNoOtherOperation(): void {
+    Assert::assertSame(['chat'], $this->providerFacts['operations'] ?? NULL);
+  }
+
+  /**
+   * @Then the n8n provider declares no model capabilities
+   */
+  public function theProviderDeclaresNoCapabilities(): void {
+    Assert::assertSame([], $this->providerFacts['capabilities'] ?? NULL);
+  }
+
+  // ── The Drupal signature ───────────────────────────────────────────────────
+
+  /**
+   * Sends a message through the real provider — the exact call the assistant
+   * pipeline makes — at the Echo Agent, which hands back everything it saw.
+   *
+   * @When a message is sent to the :name agent through the provider
+   */
+  public function aMessageIsSentThroughTheProvider(string $name): void {
+    $workflow = $this->n8nWorkflowByName($name);
+    Assert::assertNotNull($workflow, "No fixture named '$name'.");
+    $reply = $this->providerChat($workflow['id'], 'hello from behat', 'behat-signature', 'You are a pirate');
+    $decoded = json_decode($reply, TRUE);
+    Assert::assertIsArray($decoded, "The $name fixture should echo JSON. Got: $reply");
+    $this->echo = $decoded;
+  }
+
+  /**
+   * @Then n8n received the message :message as the whole conversation
+   */
+  public function n8nReceivedOnlyTheMessage(string $message): void {
+    Assert::assertSame($message, $this->echo['chatInput'] ?? NULL, json_encode($this->echo));
+  }
+
+  /**
+   * @Then the message carried the Drupal signature
+   */
+  public function theMessageCarriedTheSignature(): void {
+    $metadata = $this->echo['metadata'] ?? [];
+    Assert::assertSame('drupal', $metadata['source'] ?? NULL, 'metadata.source should say drupal: ' . json_encode($this->echo));
+    Assert::assertArrayHasKey('site', $metadata, 'metadata.site should carry the site name.');
+    Assert::assertSame('behat_helper', $metadata['assistant'] ?? NULL, 'metadata.assistant should carry the companion agent id.');
+  }
+
+  /**
+   * @Then the signature carried the instructions :instructions
+   */
+  public function theSignatureCarriedInstructions(string $instructions): void {
+    Assert::assertSame($instructions, $this->echo['metadata']['instructions'] ?? NULL, json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * @Then the conversation did not contain :text
+   */
+  public function theConversationDidNotContain(string $text): void {
+    Assert::assertStringNotContainsString($text, (string) ($this->echo['chatInput'] ?? ''), 'The conversation must stay clean.');
+  }
+
+  /**
+   * @Then n8n received the session id :session
+   */
+  public function n8nReceivedTheSessionId(string $session): void {
+    Assert::assertSame($session, $this->echo['sessionId'] ?? NULL, json_encode($this->echo));
+  }
+
+  // ── Support ────────────────────────────────────────────────────────────────
+
+  /**
+   * Creates or updates a Key entity with a literal value.
+   *
+   * key_provider "config" stores the value in the entity — fine for a test key
+   * that dies with the ephemeral site. The module under test never sees the
+   * raw value either way; it asks the key repository at call time.
+   */
+  protected function createKeyEntity(string $id, string $value): void {
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $storage = \Drupal::entityTypeManager()->getStorage('key');
+      $key = $storage->load(KEY_ID);
+      if ($key === NULL) {
+        $key = $storage->create(['id' => KEY_ID, 'label' => KEY_ID, 'key_type' => 'authentication']);
+      }
+      $key->set('key_provider', 'config');
+      $key->set('key_provider_settings', ['key_value' => KEY_VALUE]);
+      $key->save();
+      echo json_encode(TRUE);
+      PHP, [
+        'KEY_ID' => var_export($id, TRUE),
+        'KEY_VALUE' => var_export($value, TRUE),
+      ]));
   }
 
 }

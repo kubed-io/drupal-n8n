@@ -37,7 +37,6 @@
 # n8n stays the source of truth: the list is read live, nothing about the workflows is
 # copied into Drupal's configuration, and nobody presses a sync button.
 
-@todo
 Feature: n8n agents appear as models
   As a Drupal admin
   I want the n8n chat agents tagged for my site listed as models
@@ -76,11 +75,10 @@ Feature: n8n agents appear as models
     And "Canned Agent" is offered as a model
 
   Scenario: n8n owns the name
-    Given the "Echo Agent" workflow is tagged "mysite" in n8n
-    And the "Echo Agent" workflow is renamed to "Support Triage" in n8n
+    Given the "Rename Me" workflow is renamed to "Support Triage" in n8n
     When the admin lists the available n8n models
     Then "Support Triage" is offered as a model
-    And "Echo Agent" is not offered as a model
+    And "Rename Me" is not offered as a model
 
   # The trigger is the door. Two public chat triggers into one tagged flow means two
   # models, each labelled by its door, each with its own webhook and session space.
@@ -94,10 +92,10 @@ Feature: n8n agents appear as models
     When the admin lists the available n8n models
     Then no workflow id appears in Drupal's configuration
 
-  # Multisite. The default site uses the global tag; a second domain overrides it with
-  # its own. Needs the Domain module and two domains in the harness — parked until the
-  # integration suite grows a domain setup.
-  @todo @domain
+  # Multisite. The default site uses the global tag; a second domain overrides it
+  # with its own. CLI never negotiates a domain, so the step activates it through
+  # domain.negotiation_context — the service that actually gates config overrides.
+  @domain
   Scenario: A second domain sees only its own tagged agents
     Given a domain "shop" overrides the site tag to "shopsite"
     And the "Shop Bot" workflow is tagged "shopsite" in n8n

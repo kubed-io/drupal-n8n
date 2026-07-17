@@ -85,7 +85,7 @@ The agent's model, prompt, memory, tools and RAG live in n8n. Drupal owns the ch
 box and the door. **A PR that adds a Drupal setting for something n8n already owns
 will be rejected**, however convenient it seems. When Drupal hands us a system
 prompt, we drop it. When Drupal offers history, we ignore it. See
-[`features/prompt-ownership.feature`](features/prompt-ownership.feature) — that
+[`features/drupal-signature.feature`](features/drupal-signature.feature) — that
 behaviour is specified, not incidental.
 
 The corollary: **n8n must never be selectable where a raw model is required.** The

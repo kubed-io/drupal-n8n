@@ -33,17 +33,23 @@ Agent node, no model credential. That is not a shortcut: this module's job is th
 **transport**, not the intelligence (see [saga §1](../saga/Chapter_1_Packing_the_Van.md)).
 It also keeps CI free, fast and deterministic.
 
+Fixtures are created by [`tests/integration/bin/preload-n8n.sh`](../tests/integration/bin/preload-n8n.sh).
+Unless a row says otherwise, a fixture is **active**, its chat trigger is **public**,
+and it carries the suite's site tag **`mysite`**.
+
 | Fixture | Shape | Exists to prove |
 |---|---|---|
-| **Echo Agent** | returns the `chatInput` and `sessionId` it received | what we actually sent n8n |
-| **Canned Agent** | always returns `the answer is 42` | the answer reaches the visitor |
-| **JSON Agent** | returns a JSON object as its answer | that a JSON-shaped answer survives intact |
-| **Slow Agent** | waits longer than the request timeout | the timeout path |
-| **Failing Agent** | throws during execution | the error path |
+| **Echo Agent** | returns everything it received — message, session id, metadata — as its answer | what we actually sent n8n, and what we did not |
+| **Canned Agent** | always returns `the answer is 42`; **no site tag** | untagged workflows are not offered; the answer reaches the visitor |
+| **Rename Me** | a canned agent that exists to be renamed mid-suite | n8n owns the name, without disturbing the other fixtures |
 | **Webhook Only** | a webhook trigger, no chat trigger | the model filter excludes it |
-| **Inactive Agent** | a chat trigger, left inactive | the active filter excludes it |
+| **Inactive Agent** | a chat trigger, left **inactive** | the active filter excludes it |
 | **Private Agent** | an active chat trigger, **not** publicly available | the public filter excludes it — active is not enough |
-| **Two Doors** | ONE workflow, TWO public chat triggers — "Front Door" and "Admin Door" — into one Code node | each public trigger is its own model |
+| **Two Doors** | ONE workflow, TWO public chat triggers — "Front Door" and "Admin Door" — into one Echo node | each public trigger is its own model |
+| **Shop Bot** | a canned agent tagged **`shopsite`**, not `mysite` | a second domain sees only its own tagged agents |
+| **JSON Agent** *(not preloaded yet)* | returns a JSON object as its answer | a JSON-shaped answer survives intact — arrives with the assistant-chat steps |
+| **Slow Agent** *(not preloaded yet)* | waits longer than the request timeout | the timeout path — arrives with connection-failure |
+| **Failing Agent** *(not preloaded yet)* | throws during execution | the error path — arrives with connection-failure |
 
 Every chat fixture must set the chat trigger's **Make Chat Publicly Available**. Without
 it n8n registers no webhook and the fixture answers 404 no matter how active it is.

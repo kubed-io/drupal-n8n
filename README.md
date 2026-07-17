@@ -152,21 +152,24 @@ Only the newest message is sent. Drupal never replays history, because n8n alrea
 
 📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
-### n8n owns the prompt
+### Every message carries the Drupal signature
 
-Your agent's system prompt lives in n8n, on the AI Agent node. Drupal's assistant has prompt fields of its own — **this module ignores them**, because your agent already has instructions and two sets would fight.
+The conversation your agent sees carries exactly one thing: the visitor's newest message. Everything else Drupal knows rides along as **metadata** — the Drupal signature:
 
-This is the single most surprising thing about the module, so it is stated plainly here and in the UI: see [Settings that intentionally do nothing](#settings-that-intentionally-do-nothing).
+| Key | Carries |
+|---|---|
+| `source` | always `drupal` — how a workflow tells Drupal traffic from n8n's own chat |
+| `site` | the site's name |
+| `assistant` | which assistant is calling, so one agent serving several can tell them apart |
+| `instructions` | the assistant form's instructions, composed by Drupal — offered as a variable, never injected into the conversation |
 
-📋 spec: [`features/prompt-ownership.feature`](features/prompt-ownership.feature)
+**Everything in the signature is optional context, never an order.** Your agent's own system prompt lives in n8n and always wins; a workflow that ignores the metadata behaves exactly as it does in n8n's own chat window. But a workflow that *reads* it gets the module's distinctive trick: `{{ $json.metadata.instructions }}` as a variable in the agent's prompt, and one generic agent becomes a different persona per assistant.
 
-### One agent, many personas *(planned)*
+### One agent, many personas
 
-Because several assistants can point at the same model, one n8n agent can serve many faces of your site — and the **metadata** each message carries is what tells them apart. Every chat POST already includes metadata; the plan is to let each assistant contribute its own (its name, its instructions, custom key/values), so a *generic* agent flow in n8n can read `metadata.instructions` and adapt: one workflow, a formal persona on the support page, a playful one on the blog.
+That signature is what makes assistants **overrideable implementations** of one agent. Nothing on the assistant form has to be filled in, and its name doesn't have to match the workflow's — but each assistant that points at the same model sends its own signature. A formal persona on the support page, a playful one on the blog: same workflow, two assistants, `metadata.instructions` doing the differentiating. Or ignore all of it and run one assistant per agent — both are first-class.
 
-This is also where the assistant form's inert fields earn their keep, optionally: fill in **Instructions** and it travels as metadata for your workflow to use — or leave it empty and the workflow's own prompt stands alone. Nothing is forwarded unless you switch it on.
-
-> **Status:** the metadata channel is proven end-to-end; the per-assistant configuration is designed but not yet specified. This paragraph is the idea's front door, per [how a feature becomes a feature](features/README.md#how-a-feature-becomes-a-feature).
+📋 spec: [`features/drupal-signature.feature`](features/drupal-signature.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
 ### Not an agent brain (on purpose)
 

@@ -111,7 +111,7 @@ jobs:
         composer config minimum-stability dev
         composer config prefer-stable true
         composer config repositories.module path "$GITHUB_WORKSPACE/module"
-        composer require "drupal/$MODULE:*" drupal/ai drupal/key drush/drush \
+        composer require "drupal/$MODULE:*" drupal/ai drupal/key drupal/domain drush/drush \
           --no-interaction --no-progress
 
     - name: Install Behat deps
@@ -125,7 +125,10 @@ jobs:
           --db-url=sqlite://sites/default/files/.sqlite \
           --account-name=admin --account-pass=admin \
           --site-name=n8n-integration -y
-        ./vendor/bin/drush en "$MODULE" ai_provider_n8n -y
+        # domain + domain_config back the @domain scenarios; with no domain
+        # entities defined they are inert, so the no-Domain scenarios stay
+        # faithful tests of the no-Domain case.
+        ./vendor/bin/drush en "$MODULE" ai_provider_n8n domain domain_config -y
 
     # ── Readiness gate ───────────────────────────────────────────────────────
     - name: Wait for n8n
@@ -148,6 +151,13 @@ jobs:
         echo "::add-mask::$key"
         echo "key=$key" >> "$GITHUB_OUTPUT"
         echo "✅ n8n API key obtained, length ${#key}"
+
+    # CONTROL CASE: fixtures go in through n8n's own public API, never through the
+    # module under test, so scenarios act on genuinely pre-existing workflows.
+    - name: Preload fixture workflows
+      env:
+        N8N_API_KEY: ${{ steps.n8n_key.outputs.key }}
+      run: bash "$GITHUB_WORKSPACE/module/tests/integration/bin/preload-n8n.sh"
 
     - name: Run Behat
       working-directory: module/tests/integration
