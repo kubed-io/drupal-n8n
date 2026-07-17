@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Chat with an n8n agent through Drupal's chat block: `chat()` posts the newest message to the workflow's chat webhook with a stable session id, so the agent's own memory threads the conversation.
 - Model discovery: every active workflow whose chat trigger is publicly available appears as a model, one model per trigger — a workflow with two public chat triggers is two models, labelled by door.
-- Connection setting and spec for an optional assistant tag, narrowing discovery to the workflows meant for the site (`features/assistant-sync.feature`).
+- Site tag: one n8n workflow tag per site scopes which agents become models, read through the config factory so the Domain module gives each subsite its own tag for free. Empty tag offers every qualifying workflow.
 
 ### Changed
 
@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `features/webform-submit.feature` — parked; Webform's stock Remote Post handler plus ECA already cover the use case.
+- The assistant-sync idea (auto-generating assistants from tagged workflows) — turning a model into an assistant is the admin's design choice, not something this module should automate.
 
 ## [0.1.0] - 2026-07-15
 

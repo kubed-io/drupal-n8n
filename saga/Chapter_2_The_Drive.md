@@ -1015,6 +1015,28 @@ written** — the best possible outcome for a stop.
 
 ## 7. Session log
 
+- **2026-07-17 — the tag becomes the map, and auto-gen is cut.** Dr K settled
+  two things the POC had left fuzzy. **(1) No auto-generated assistants.**
+  Turning a model into an assistant is a design choice — one model can back
+  several assistants with different roles and metadata (many:1 is a *choice*,
+  not a rule) — so the module must not automate it. Confirmed in code: nothing
+  ever touched `ai_assistant` entities, so there was no 1:1 to enforce and
+  nothing to remove but the unbuilt `assistant-sync.feature` and its README
+  prose. **(2) The tag is the discovery filter, one per site.** The `tag`
+  setting existed but was **dead config — `listChatWorkflows()` never read
+  it**; now it does. Verified live that the n8n public API filters
+  `/workflows?tags=<name>` (media→8, missing→0, multi=AND), then wired it:
+  empty tag = every qualifying workflow (fresh-install friendly, preserves the
+  POC), set tag = only that tag's workflows. Proven on the cluster: tagged
+  Kubed Assistant `mysite`, `tag=mysite`→shows, `tag=otherteam`→empty,
+  `tag=""`→all. **Multisite falls out for free:** because the client reads the
+  tag through `configFactory`, a Domain override of `n8n.settings:tag` scopes
+  each subsite to its own agents (Ch1 §9.1's mechanism paying out), default
+  site unchanged whether Domain is installed or not — the live-domain test is
+  `@todo @domain` pending the integration harness. The mental model is now
+  clean end to end: **n8n chat trigger = Drupal model; the site tag = which
+  agents this site (or domain) sees; the assistant = a human's choice of which
+  model to expose, as many faces as they want via metadata.**
 - **2026-07-16, homework round — Dr K's questions, answered by doing.**
   - **The defaults page** (`/admin/config/ai/settings`) inventoried live: ~17
     operation types; **n8n appears on exactly one row — plain Chat** — absent

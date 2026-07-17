@@ -159,10 +159,15 @@ drush n8n:test
 ```
 
 **Those three drush commands are all that exist.** The README also documents
-`n8n:models`, `n8n:chat`, `n8n:set-tag`, `n8n:sync` and `n8n:assistant` — that file
-is the **specification**, so it describes the finished product. Do not cite them as
-working. The provider's `chat()` and model discovery ARE real as of the Chapter 2
-POC, but live only in the working copy until released.
+`n8n:models`, `n8n:chat` and `n8n:set-tag` — that file is the **specification**, so it
+describes the finished product. Do not cite them as working. The provider's `chat()`,
+model discovery, and the **site-tag filter** ARE real as of Chapter 2, but live only in
+the working copy until released.
+
+**We do NOT generate assistants.** The old `n8n:sync` / `n8n:assistant` idea is
+dropped — turning a model into an assistant is the admin's design choice (one model can
+back several assistants). The module never touches `ai_assistant` entities. The site
+tag's only job is scoping model discovery, one tag per site (Domain-overridable).
 
 `./dev.sh` pushes this working copy into the live Drupal pod for runtime probing.
 **Read its header before using `enable`** — the code is ephemeral but `drush en`
