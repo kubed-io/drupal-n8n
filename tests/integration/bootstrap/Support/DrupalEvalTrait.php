@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Drupal\Tests\n8n\Integration\Support;
 
 /**
- * Runs PHP inside the Drupal under test, for the surfaces drush has no command
- * for yet.
+ * Runs PHP inside the Drupal under test.
  *
+ * For the surfaces drush has no command for yet.
  * drush php:eval chokes on any serious quoting, so the code is written to a temp
  * file and required — the same trick the live-cluster dev loop uses. Each helper
  * prints JSON on its last line so the step definitions get structured data back

@@ -1,0 +1,50 @@
+{
+  "name": "Webhook Only",
+  "nodes": [
+    {
+      "id": "aaaa1111-0000-4000-8000-000000000004",
+      "name": "Webhook",
+      "webhookId": "aaaa1111-0000-4000-8000-000000000004",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "fixture-webhook-only",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "code-canned",
+      "name": "Canned",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { output: \"the answer is 42\" } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Canned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -19,6 +19,64 @@
 
 ---
 
+## ⏱ Where we are RIGHT NOW — 2026-07-17 (handoff state)
+
+> For an agent picking this up cold. Read this, then §4 (the route) and the
+> session log at the bottom. Everything here is on **branch `ch2-site-tag`,
+> [PR #12](https://github.com/kubed-io/drupal-n8n/pull/12), open, not merged.**
+> PR #11 (the first sip) is already **merged to main**.
+
+**Still at Stop 0/1.** We are *at the first stop*, laying real pavement while
+the mental model of the whole trip firms up. Not further along than that — Dr K
+sets the pace.
+
+**What is real in code (branch `ch2-site-tag`):**
+- `N8nClient::listChatWorkflows()` — one model per public chat trigger; the
+  **site tag** filters via `/workflows?tags=` (empty = all). Domain override
+  gives per-domain tags for free.
+- `N8nClient::chatSend()` — POSTs the chat contract; refuses unknown models;
+  errors on no `output`; 60s floor; key never leaks to the webhook.
+- `N8nProvider::chat()` — newest message only, session id from
+  `ai_agents_thread_`, system prompt dropped, and the **Drupal signature**
+  (`metadata.{source, site, assistant, instructions}`) on every call.
+- Unit tests cover all of the above.
+
+**What is real in tests (this PR):**
+- Integration suite went harness-only → live: `tests/workflows/*.json` fixture
+  pack (sibling pattern — JSON files + python3, **no jq**), `preload-n8n.sh`
+  seeds them through n8n's own API, `mint-n8n-key.sh` now carries **tag
+  scopes**, `FeatureContext` has ~30 steps, and `drupal/domain` drives a real
+  `@domain` multisite scenario.
+
+**Dropped / decided (do not resurrect):**
+- **No auto-generated assistants.** Making a model into an assistant is the
+  admin's choice. The module never touches `ai_assistant` entities.
+- `assistant-sync.feature` deleted; `prompt-ownership.feature` merged into
+  `drupal-signature.feature` (one contract, one feature).
+- Streaming is structurally impossible on the new API (§1.3a). Fork F dead.
+
+**CI status (as of this writing):** PR #12's last push (`e7ef41f`) went
+red on **PHP Quality** — phpcs docblock/naming errors in the new integration
+`FeatureContext`, plus the preload **403'd** because the minted key lacked
+`tag:list` scope. Both **fixed locally, not yet pushed**: method names
+de-camel-cased, docblock short descriptions split, `@domain`/`@todo` removed
+from a class docblock, mint scopes extended, preload rewritten to the sibling's
+JSON-file pattern. **The next commit is that fix.** PHPUnit + PHPStan + PR Tasks
+were green.
+
+**The standing gotcha:** GitHub's REST API had a global outage on 07-16 that
+made the EnricoMi *reporter* step hang ~11 min and fail a *passing* test run.
+Not our bug. If a required check fails only in "Publish test results", check
+`curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/kubed-io/drupal-n8n`
+before touching code.
+
+**Immediate next steps:** push the phpcs+preload fix → watch CI → expect
+first-contact failures in the ~10 newly-live integration scenarios (fixture
+payloads, step regexes, the domain entity shape) → iterate. Then the route
+continues at §4.
+
+---
+
 ## Where we start — 2026-07-15
 
 Carried in from Chapter 1, per its closing inventory:

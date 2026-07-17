@@ -14,9 +14,9 @@ use PHPUnit\Framework\Assert;
  * Step definitions for the n8n integration suite.
  *
  * Wired: harness, admin-connection, model-discovery incl. the site tag and the
- * @domain scenario, agent-exclusion's provider-surface checks, and the Drupal
- * signature. Still @todo: everything needing an ai_assistant entity in the loop
- * — those land when the suite grows an assistant fixture.
+ * multisite domain scenario, agent-exclusion's provider-surface checks, and the
+ * Drupal signature. Still tagged for later: everything needing an ai_assistant
+ * entity in the loop — those land when the suite grows an assistant fixture.
  *
  * Keep the parentheses out of step text: a literal ( or ) becomes a regex group,
  * the step silently goes undefined, and the suite fails while looking green.
@@ -115,11 +115,13 @@ class FeatureContext implements Context {
    *
    * @Given a key holding a valid n8n API key was added to Drupal
    */
-  public function aKeyHoldingAValidApiKeyExists(): void {
+  public function validKeyEntityExists(): void {
     $this->createKeyEntity(self::VALID_KEY, $this->n8nApiKey());
   }
 
   /**
+   * Step: The admin sets the n8n base URL.
+   *
    * @When the admin sets the n8n base URL
    */
   public function theAdminSetsTheBaseUrl(): void {
@@ -128,6 +130,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The admin selects a key holding a valid n8n API key.
+   *
    * @When the admin selects a key holding a valid n8n API key
    */
   public function theAdminSelectsTheValidKey(): void {
@@ -137,6 +141,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The admin tests the connection.
+   *
    * @When the admin tests the connection
    */
   public function theAdminTestsTheConnection(): void {
@@ -144,6 +150,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The connection is verified.
+   *
    * @Then the connection is verified
    */
   public function theConnectionIsVerified(): void {
@@ -152,6 +160,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The admin configures the connection with an invalid API key.
+   *
    * @When the admin configures the connection with an invalid API key
    */
   public function theAdminConfiguresWithAnInvalidKey(): void {
@@ -161,6 +171,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The admin configures the connection with an unreachable host.
+   *
    * @When the admin configures the connection with an unreachable host
    */
   public function theAdminConfiguresWithAnUnreachableHost(): void {
@@ -170,13 +182,17 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The connection test reports a failure.
+   *
    * @Then the connection test reports a failure
    */
-  public function theConnectionTestReportsAFailure(): void {
+  public function theConnectionTestFails(): void {
     Assert::assertNotSame(0, $this->drushExitCode(), 'n8n:test should exit non-zero: ' . $this->drushOutput());
   }
 
   /**
+   * Step: The admin configures and tests the connection with drush.
+   *
    * @When the admin configures and tests the connection with drush
    */
   public function theAdminConfiguresAndTestsWithDrush(): void {
@@ -186,6 +202,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The command exits with a zero status.
+   *
    * @Then the command exits with a zero status
    */
   public function theCommandExitsZero(): void {
@@ -208,6 +226,8 @@ class FeatureContext implements Context {
   // ── The site tag ───────────────────────────────────────────────────────────
 
   /**
+   * Step: The site tag is set to the tag.
+   *
    * @Given the site tag is set to :tag
    */
   public function theSiteTagIsSetTo(string $tag): void {
@@ -216,6 +236,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The site tag is not set.
+   *
    * @Given the site tag is not set
    */
   public function theSiteTagIsNotSet(): void {
@@ -237,6 +259,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The the name workflow is not tagged the tag in n8n.
+   *
    * @Given the :name workflow is not tagged :tag in n8n
    */
   public function theWorkflowIsNotTagged(string $name, string $tag): void {
@@ -247,6 +271,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The the name workflow is renamed to the new_name in n8n.
+   *
    * @Given the :name workflow is renamed to :new_name in n8n
    */
   public function theWorkflowIsRenamed(string $name, string $new_name): void {
@@ -254,6 +280,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The admin lists the available n8n models.
+   *
    * @When the admin lists the available n8n models
    */
   public function theAdminListsTheModels(): void {
@@ -261,9 +289,11 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: the label is offered as a model.
+   *
    * @Then :label is offered as a model
    */
-  public function isOfferedAsAModel(string $label): void {
+  public function modelIsOffered(string $label): void {
     Assert::assertContains(
       $label,
       array_values($this->models),
@@ -272,9 +302,11 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: the label is not offered as a model.
+   *
    * @Then :label is not offered as a model
    */
-  public function isNotOfferedAsAModel(string $label): void {
+  public function modelIsNotOffered(string $label): void {
     Assert::assertNotContains(
       $label,
       array_values($this->models),
@@ -283,6 +315,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: No workflow id appears in Drupal's configuration.
+   *
    * @Then no workflow id appears in Drupal's configuration
    */
   public function noWorkflowIdAppearsInConfiguration(): void {
@@ -351,9 +385,9 @@ class FeatureContext implements Context {
   }
 
   /**
-   * Lists models with the given domain active, the way a request on that
-   * hostname would see them.
+   * Lists models with the given domain active.
    *
+   * The way a request on that hostname would see them.
    * CLI never negotiates a domain — drush --uri does NOT populate the context,
    * proven in saga Ch1 §9.1 — so the step activates the domain explicitly
    * through domain.negotiation_context, which is the service that actually
@@ -377,6 +411,8 @@ class FeatureContext implements Context {
   // ── Provider surfaces ──────────────────────────────────────────────────────
 
   /**
+   * Step: The admin views the provider choices for an AI assistant.
+   *
    * @When the admin views the provider choices for an AI assistant
    */
   public function theAdminViewsAssistantProviderChoices(): void {
@@ -387,20 +423,26 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: the provider is offered as a provider.
+   *
    * @Then :provider is offered as a provider
    */
-  public function isOfferedAsAProvider(string $provider): void {
+  public function providerIsOffered(string $provider): void {
     Assert::assertContains(strtolower($provider), $this->providerFacts['providers'] ?? [], json_encode($this->providerFacts));
   }
 
   /**
+   * Step: the provider is not offered as a provider.
+   *
    * @Then :provider is not offered as a provider
    */
-  public function isNotOfferedAsAProvider(string $provider): void {
+  public function providerIsNotOffered(string $provider): void {
     Assert::assertNotContains(strtolower($provider), $this->providerFacts['providers'] ?? [], json_encode($this->providerFacts));
   }
 
   /**
+   * Step: The admin views the provider choices for an operation requiring the capability.
+   *
    * @When the admin views the provider choices for an operation requiring :capability
    */
   public function theAdminViewsCapabilityFilteredChoices(string $capability): void {
@@ -420,6 +462,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The admin inspects the n8n provider.
+   *
    * @When the admin inspects the n8n provider
    */
   public function theAdminInspectsTheProvider(): void {
@@ -433,6 +477,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The n8n provider supports the chat operation.
+   *
    * @Then the n8n provider supports the chat operation
    */
   public function theProviderSupportsChat(): void {
@@ -440,6 +486,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The n8n provider supports no other operation.
+   *
    * @Then the n8n provider supports no other operation
    */
   public function theProviderSupportsNoOtherOperation(): void {
@@ -447,6 +495,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The n8n provider declares no model capabilities.
+   *
    * @Then the n8n provider declares no model capabilities
    */
   public function theProviderDeclaresNoCapabilities(): void {
@@ -456,8 +506,10 @@ class FeatureContext implements Context {
   // ── The Drupal signature ───────────────────────────────────────────────────
 
   /**
-   * Sends a message through the real provider — the exact call the assistant
-   * pipeline makes — at the Echo Agent, which hands back everything it saw.
+   * Sends a message through the real provider.
+   *
+   * The exact call the assistant pipeline makes, at the Echo Agent, which hands
+   * back everything it saw.
    *
    * @When a message is sent to the :name agent through the provider
    */
@@ -471,6 +523,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: N8n received the message the message as the whole conversation.
+   *
    * @Then n8n received the message :message as the whole conversation
    */
   public function n8nReceivedOnlyTheMessage(string $message): void {
@@ -478,6 +532,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The message carried the Drupal signature.
+   *
    * @Then the message carried the Drupal signature
    */
   public function theMessageCarriedTheSignature(): void {
@@ -488,6 +544,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The signature carried the instructions the instructions.
+   *
    * @Then the signature carried the instructions :instructions
    */
   public function theSignatureCarriedInstructions(string $instructions): void {
@@ -495,6 +553,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The conversation did not contain the text.
+   *
    * @Then the conversation did not contain :text
    */
   public function theConversationDidNotContain(string $text): void {
@@ -502,6 +562,8 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: N8n received the session id the session.
+   *
    * @Then n8n received the session id :session
    */
   public function n8nReceivedTheSessionId(string $session): void {

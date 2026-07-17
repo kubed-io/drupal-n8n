@@ -1,0 +1,54 @@
+{
+  "name": "Canned Agent",
+  "nodes": [
+    {
+      "id": "aaaa1111-0000-4000-8000-000000000002",
+      "name": "When chat message received",
+      "webhookId": "aaaa1111-0000-4000-8000-000000000002",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "authentication": "none",
+        "options": {
+          "responseMode": "lastNode"
+        }
+      }
+    },
+    {
+      "id": "code-canned",
+      "name": "Canned",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { output: \"the answer is 42\" } }];"
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Canned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

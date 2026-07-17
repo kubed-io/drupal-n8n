@@ -97,8 +97,9 @@ trait N8nApiTrait {
   }
 
   /**
-   * Whether a workflow carries a tag, per n8n itself — the other side of every
-   * tag assertion.
+   * Whether a workflow carries a tag, per n8n itself.
+   *
+   * The other side of every tag assertion.
    */
   protected function n8nWorkflowHasTag(string $name, string $tag): bool {
     $workflow = $this->n8nWorkflowByName($name);

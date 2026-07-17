@@ -43,9 +43,12 @@ fi
 # key — n8n has UNIQUE(userId, label) and a duplicate 500s — so stamp it.
 label="integration-tests-$(date +%s)-$$"
 
-# Scopes the suite needs: read workflows to prove model discovery, and create them
-# so preload can seed the fixtures through n8n's own API.
-scopes='["workflow:read","workflow:list","workflow:create","workflow:update","workflow:delete","workflow:activate","workflow:deactivate"]'
+# Scopes the suite needs: read workflows to prove model discovery, create and
+# activate them so preload can seed the fixtures, and manage tags because the site
+# tag is a first-class feature — the preload creates tags and attaches them, and a
+# key without tag:list 403s on the very first call. Newer n8n scopes API keys, so
+# a missing scope here is a silent, surprising 403 later, not a 401 up front.
+scopes='["workflow:read","workflow:list","workflow:create","workflow:update","workflow:delete","workflow:activate","workflow:deactivate","tag:create","tag:read","tag:list","tag:update","workflowTags:list","workflowTags:update"]'
 
 raw=$(
   curl -fsS -X POST "$N8N_URL/rest/api-keys" \
