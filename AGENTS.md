@@ -98,6 +98,13 @@ Each cost someone a session. One line each; follow the link before you act on it
   `$input->getSystemPrompt()` — the latter is the loop's per-turn runtime prompt
   with framing noise. Empty instructions ⇒ the key is absent (zero-detail
   passthrough). · spec: [drupal-signature.feature](features/drupal-signature.feature)
+- The session id is the runner's thread key from the `ai_agents_thread_` tag,
+  sent as n8n `sessionId` — the `@n8n/chat` model, sourced from Drupal's session.
+  `session_one_thread` is **only stable per browser (web session)**, NOT across
+  CLI processes — so tests prove the bridge deterministically, not per-browser
+  stability. `metadata.context_window` = the assistant's `history_context_length`
+  (absent when 0). The chat trigger's Load Previous Session is n8n's own concern;
+  we never call `loadPreviousSession`. · spec: [session-memory.feature](features/session-memory.feature)
 
 **Domain config** → [saga §9.1](saga/Chapter_1_Packing_the_Van.md)
 

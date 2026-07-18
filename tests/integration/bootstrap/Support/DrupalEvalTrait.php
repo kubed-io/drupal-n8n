@@ -89,7 +89,7 @@ trait DrupalEvalTrait {
    * llm_configuration or specific_error_messages becomes unloadable AND
    * undeletable through the entity API. See saga Chapter 2 §1.1c.
    */
-  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions): void {
+  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2): void {
     $this->drupalEvalJson(strtr(<<<'PHP'
       $etm = \Drupal::entityTypeManager();
       foreach (['ai_assistant', 'ai_agent'] as $type) {
@@ -106,7 +106,7 @@ trait DrupalEvalTrait {
         'id' => ID, 'label' => ID, 'description' => 'behat', 'ai_agent' => ID,
         'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => [],
         'instructions' => INSTRUCTIONS, 'allow_history' => 'session_one_thread',
-        'history_context_length' => '2', 'assistant_message' => 'hi',
+        'history_context_length' => HISTORY, 'assistant_message' => 'hi',
         'no_results_message' => 'no results', 'error_message' => 'error: [error_message]',
         'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => [],
         'system_prompt' => '', 'pre_action_prompt' => '', 'preprompt_instructions' => '',
@@ -117,7 +117,32 @@ trait DrupalEvalTrait {
         'ID' => var_export($id, TRUE),
         'WORKFLOW' => var_export($workflow_id, TRUE),
         'INSTRUCTIONS' => var_export($instructions, TRUE),
+        'HISTORY' => var_export((string) $history_length, TRUE),
       ]));
+  }
+
+  /**
+   * Sends a multi-turn history through the provider and returns the echoed request.
+   *
+   * Proves C1: even handed a full conversation, the provider forwards only the
+   * newest user message. The tags mirror what the agent runner produces.
+   */
+  protected function providerChatWithHistory(string $model_id, string $newest, string $session = 'behat-history'): string {
+    return (string) $this->drupalEvalJson(strtr(<<<'PHP'
+      $ns = 'Drupal\ai\OperationType\Chat\\';
+      $input = new ($ns . 'ChatInput')([
+        new ($ns . 'ChatMessage')('user', 'an older question'),
+        new ($ns . 'ChatMessage')('assistant', 'an older answer'),
+        new ($ns . 'ChatMessage')('user', NEWEST),
+      ]);
+      $out = \Drupal::service('ai.provider')->createInstance('n8n')
+        ->chat($input, MODEL, ['ai_agents', 'ai_agents_behat_helper', 'ai_agents_thread_' . SESSION]);
+      echo json_encode(['text' => $out->getNormalized()->getText()]);
+      PHP, [
+        'NEWEST' => var_export($newest, TRUE),
+        'MODEL' => var_export($model_id, TRUE),
+        'SESSION' => var_export($session, TRUE),
+      ]))['text'];
   }
 
   /**

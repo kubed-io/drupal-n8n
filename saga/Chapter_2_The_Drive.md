@@ -57,9 +57,10 @@ than that; Dr K sets the pace.
   errors on no `output`; 60s floor; key never leaks to the webhook.
 - `N8nProvider::chat()` — newest message only, session id from
   `ai_agents_thread_`, and the **Drupal signature**
-  (`metadata.{source, site, assistant, instructions}`) on every call.
-  `instructions` is the **agent entity's clean `system_prompt`**, not the
-  runtime prompt — absent when empty (zero-detail = passthrough).
+  (`metadata.{source, site, assistant, instructions, context_window}`) on every
+  call. `instructions` is the agent entity's clean `system_prompt`;
+  `context_window` is the assistant's `history_context_length` — both absent
+  when empty/zero.
 - Unit tests cover the client; the signature contract is proven by two live
   integration scenarios driving a real assistant end to end.
 
@@ -139,6 +140,38 @@ plumbing or the CI. Applied:
 - Feature files now: admin-connection, model-discovery, agent-exclusion,
   assistant-chat, session-memory, drupal-signature. Every one is product
   behaviour.
+
+**2026-07-18, later — the session leg, and the @n8n/chat mirror.** Dr K pointed
+at his "Movie Buff" agent (memory node wired to both the agent and the chat
+trigger) and asked how sessions really work, memory-vs-manual, and whether
+Drupal's history length could size the n8n memory. Research settled it, mostly
+by probing:
+- **The session bridge was already built** — the runner's thread key →
+  `ai_agents_thread_` tag → provider → n8n `sessionId`. What's NEW is
+  `context_window`: the assistant's `history_context_length` now rides the
+  metadata, so an n8n memory node's Context Window Length can be
+  `={{ $json.metadata.context_window }}`. Proven live: history 8 → `context_window: 8`;
+  history 0 → key absent.
+- **The @n8n/chat mirror** (Dr K's comparison): n8n's own embed widget generates
+  a `sessionId` and sends it every message, kept in the browser's localStorage.
+  We do the identical thing, sourced from Drupal's server-side session store
+  keyed by the session cookie. Same "one session per browser," different drawer.
+  This is the framing the README now leads with.
+- **Memory-vs-manual is NOT ours.** The chat trigger's Load Previous Session
+  (From Memory / Manually) is how n8n's own chat UI rehydrates on open. Drupal
+  drives the webhook with `sendMessage` and never calls `loadPreviousSession`,
+  so it doesn't touch us. Threading comes from the memory node wired to the
+  AGENT. Clean elimination — one fewer thing to build.
+- **Built-in memory suffices for tests** — the Simple Memory node "stores in n8n
+  memory, so no credentials required," so no Postgres, no extra DB in CI.
+- **A probe caught the real subtlety:** `session_one_thread` does NOT produce a
+  stable key across separate CLI processes — it's PrivateTempStore keyed by the
+  browser session, which headless drush lacks. So per-browser stability is a web
+  property (like @n8n/chat's localStorage), documented not asserted; the suite
+  proves our part — key→sessionId, only-newest, context_window — deterministically.
+- Live: `Kubed Assistant`'s memory now reads `context_window` for its window and
+  is wired to the trigger too; the `kubed_assistant` assistant is
+  `session_one_thread`, history length 8.
 
 **Then (still 07-18) — the missing knob, and the milestone.** Dr K went to set
 the site tag in the UI and found no field: it had config, schema, the discovery

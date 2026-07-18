@@ -194,8 +194,10 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    *     assistant's companion agent, so one workflow serving several assistants
    *     can tell its callers apart. instructions: the assistant's own
    *     instructions, CLEAN — never present when the assistant has none, so a
-   *     zero-detail assistant is a pure passthrough. Offered as a variable the
-   *     workflow may use, never injected into the conversation.
+   *     zero-detail assistant is a pure passthrough. context_window: the
+   *     assistant's History context length, so a memory node can size its window
+   *     from Drupal — absent when unset. All offered as variables the workflow
+   *     may use, never injected into the conversation.
    */
   protected function drupalSignature(array $tags): array {
     $signature = [
@@ -207,9 +209,30 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
       if ($instructions = $this->assistantInstructions($agent_id)) {
         $signature['instructions'] = $instructions;
       }
+      if ($window = $this->assistantContextWindow($agent_id)) {
+        $signature['context_window'] = $window;
+      }
     }
 
     return $signature;
+  }
+
+  /**
+   * The assistant's History context length, for a memory node to size itself.
+   *
+   * Drupal's assistant advanced settings carry a History context length. We
+   * never replay history — n8n's memory owns it — but forwarding the number lets
+   * a memory node set its Context Window Length from Drupal, so the admin's
+   * Drupal setting drives how much the n8n agent remembers. The tag gives the
+   * agent id, which for a form-created assistant equals the assistant id. Zero
+   * or unset means the key is absent.
+   */
+  protected function assistantContextWindow(string $agent_id): int {
+    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
+      return 0;
+    }
+    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    return $assistant ? (int) $assistant->get('history_context_length') : 0;
   }
 
   /**

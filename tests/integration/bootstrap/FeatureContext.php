@@ -586,6 +586,58 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: The newest message is sent after earlier turns.
+   *
+   * @When the newest message :message is sent to the :name agent after earlier turns
+   */
+  public function theNewestMessageIsSentAfterEarlierTurns(string $message, string $name): void {
+    $workflow = $this->n8nWorkflowByName($name);
+    Assert::assertNotNull($workflow, "No fixture named '$name'.");
+    $reply = $this->providerChatWithHistory($workflow['id'], $message);
+    $decoded = json_decode($reply, TRUE);
+    Assert::assertIsArray($decoded, "The $name fixture should echo JSON. Got: $reply");
+    $this->echo = $decoded;
+  }
+
+  /**
+   * Step: An assistant backed by an n8n agent with a set history length.
+   *
+   * @Given an assistant :id backed by the :agent agent with history context length :length
+   */
+  public function anAssistantWithHistoryLength(string $id, string $agent, int $length): void {
+    $workflow = $this->n8nWorkflowByName($agent);
+    Assert::assertNotNull($workflow, "No fixture named '$agent'.");
+    $this->createN8nAssistant($id, $workflow['id'], '', $length);
+    $this->createdAssistants[] = $id;
+  }
+
+  /**
+   * Step: N8n received the context window the window.
+   *
+   * @Then n8n received the context window :window
+   */
+  public function n8nReceivedTheContextWindow(int $window): void {
+    Assert::assertSame(
+      $window,
+      $this->echo['metadata']['context_window'] ?? NULL,
+      'The history length should arrive as metadata.context_window: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: N8n received no context window.
+   *
+   * @Then n8n received no context window
+   */
+  public function n8nReceivedNoContextWindow(): void {
+    Assert::assertArrayNotHasKey(
+      'context_window',
+      $this->echo['metadata'] ?? [],
+      'An assistant with no history length must forward no context window: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
    * Step: The message carried the Drupal signature.
    *
    * @Then the message carried the Drupal signature
