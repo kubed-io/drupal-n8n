@@ -80,6 +80,24 @@ class N8nCommands extends DrushCommands {
   }
 
   /**
+   * Set the n8n workflow tag that scopes discovery to this site.
+   */
+  #[CLI\Command(name: 'n8n:set-tag')]
+  #[CLI\Argument(name: 'tag', description: 'The n8n workflow tag to look for. Pass an empty string to clear it and offer every qualifying workflow.')]
+  #[CLI\Usage(name: 'drush n8n:set-tag drupal', description: 'Offer only workflows tagged "drupal" as models.')]
+  public function setTag(string $tag = ''): int {
+    $tag = trim($tag);
+    $this->configFactory->getEditable(N8nClient::CONFIG_NAME)
+      ->set('tag', $tag)
+      ->save();
+
+    $this->logger()->success($tag === ''
+      ? dt('Site tag cleared: every qualifying workflow is offered.')
+      : dt('Site tag set to @tag.', ['@tag' => $tag]));
+    return self::EXIT_SUCCESS;
+  }
+
+  /**
    * Choose the Key entity that holds the n8n API key.
    */
   #[CLI\Command(name: 'n8n:set-key')]

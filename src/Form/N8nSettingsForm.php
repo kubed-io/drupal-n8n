@@ -79,6 +79,14 @@ class N8nSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
+    $form['tag'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Site tag'),
+      '#description' => $this->t('The n8n workflow tag that marks an agent as belonging to this site — one tag per site. Only workflows carrying this tag are offered as models. Leave it empty to offer every qualifying workflow. With the Domain module, each subsite can override this with its own tag.'),
+      '#default_value' => $config->get('tag'),
+      '#placeholder' => 'drupal',
+    ];
+
     $form['timeout'] = [
       '#type' => 'number',
       '#title' => $this->t('Request timeout'),
@@ -126,6 +134,7 @@ class N8nSettingsForm extends ConfigFormBase {
     $this->config(self::CONFIG_NAME)
       ->set('base_url', rtrim((string) $form_state->getValue('base_url'), '/'))
       ->set('api_key', $form_state->getValue('api_key'))
+      ->set('tag', trim((string) $form_state->getValue('tag')))
       ->set('timeout', (int) $form_state->getValue('timeout'))
       ->save();
 
