@@ -142,14 +142,19 @@ A visitor's message now goes to your agent's Chat Trigger and the answer comes b
 
 ### The agent remembers
 
-Each Drupal conversation maps to one n8n **session**. The module derives a stable session id from the assistant and the current user and sends it with every message, so your agent's **Postgres Chat Memory** node threads the conversation exactly as it would in n8n's own chat window.
+Each Drupal conversation maps to one n8n **session**. The module takes the assistant runner's thread key and sends it with every message as `sessionId`, so a memory node whose **Session ID** is *"from the connected Chat Trigger node"* threads the conversation automatically.
 
-Two consequences worth understanding:
+**This is exactly what n8n's own embed widget, [`@n8n/chat`](https://www.npmjs.com/package/@n8n/chat), does** — it generates a `sessionId` and sends it with each message. The only difference is where the id is kept: `@n8n/chat` stores it in the browser's `localStorage`; Drupal keeps its thread key in a server-side session store tied to the visitor's session cookie. Both mean *one session per browser*, and both let n8n's memory node do the remembering. You're getting the `@n8n/chat` experience, sourced from Drupal.
 
-- **The memory lives in n8n, not Drupal.** Drupal stores no transcript. Clearing Drupal's caches doesn't forget your conversation; clearing the n8n memory table does.
-- **The same user talking to the same assistant continues the same conversation** across page loads. Different users get different sessions. Different assistants — even against the same agent — get different sessions.
+Wire your workflow like the n8n docs recommend: connect **one memory node to both the Agent and the Chat Trigger**. The Agent connection is what threads the conversation; the Chat Trigger connection is only for n8n's own chat UI, which Drupal doesn't use.
 
-Only the newest message is sent. Drupal never replays history, because n8n already has it: replaying would make the agent see every message twice.
+Three things worth understanding:
+
+- **The memory lives in n8n, not Drupal.** Drupal stores no transcript. Clearing Drupal's caches doesn't forget your conversation; clearing the n8n memory does.
+- **The same browser continues the same conversation** across page loads. Different browsers get different sessions; different assistants get different sessions.
+- **Only the newest message is sent.** Drupal never replays history — n8n already has it, and replaying would make the agent count every message twice.
+
+And you can size the memory from Drupal: set **History context length** on the assistant and it rides along as `metadata.context_window`, so your memory node's **Context Window Length** can be `={{ $json.metadata.context_window }}`.
 
 📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
@@ -163,6 +168,7 @@ The conversation your agent sees carries exactly one thing: the visitor's newest
 | `site` | the site's name |
 | `assistant` | which assistant is calling, so one agent serving several can tell them apart |
 | `instructions` | the assistant's own Instructions field, clean — **absent entirely** when the assistant has none, so a zero-detail assistant is a pure passthrough. Offered as a variable, never injected into the conversation |
+| `context_window` | the assistant's **History context length**, so a memory node can size its Context Window Length from Drupal — absent when zero or unset |
 
 **Everything in the signature is optional context, never an order.** Your agent's own system prompt lives in n8n and always wins; a workflow that ignores the metadata behaves exactly as it does in n8n's own chat window. But a workflow that *reads* it gets the module's distinctive trick: `{{ $json.metadata.instructions }}` as a variable in the agent's prompt, and one generic agent becomes a different persona per assistant.
 
@@ -263,16 +269,16 @@ Configure at **Configuration → AI → AI Assistants** (`/admin/config/ai/ai-as
 
 ### Settings that intentionally do nothing
 
-The AI Assistant form is shared across all providers, so it shows fields that are meaningless when n8n is the provider. They are **inert** — not broken, not "coming soon". n8n already owns what they configure:
+The AI Assistant form is shared across all providers, so it shows fields that n8n, not Drupal, controls. These are **inert** — not broken, not "coming soon". n8n already owns what they configure:
 
 | Field | Why it's ignored | Configure instead |
 |---|---|---|
-| **Instructions** | They feed the companion agent's system prompt — which this provider drops, because your agent has its own. | The AI Agent node in n8n |
-| **History context length** | Only the newest message is sent; n8n holds the history. | The Chat Memory node in n8n |
 | **Agents to use / RAG** | The n8n agent does its own tool calling. Attaching Drupal tools here is the one misconfiguration that makes two brains fight — leave them off. | Tool nodes in n8n |
 | **LLM Configuration** (temperature, etc.) | The model lives in n8n. | The Chat Model node in n8n |
 
-> **Rule of thumb:** if a setting describes *how the agent thinks*, it belongs in n8n. If it describes *who can talk to it and where*, it belongs in Drupal.
+Two fields that *look* inert are not: **Instructions** and **History context length** never touch the conversation, but they ride along as metadata (`metadata.instructions`, `metadata.context_window`) for your workflow to read if it wants — see [the Drupal signature](#every-message-carries-the-drupal-signature). Fill them in to extend or size a generic agent; leave them empty and nothing is forwarded.
+
+> **Rule of thumb:** if a setting describes *how the agent thinks*, it belongs in n8n. If it describes *who can talk to it and where*, it belongs in Drupal. The two exceptions above are context Drupal *offers* — n8n decides whether to use them.
 
 ---
 

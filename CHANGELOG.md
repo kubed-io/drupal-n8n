@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Session sizing from Drupal: an assistant's History context length rides along as `metadata.context_window`, so an n8n memory node can set its Context Window Length from Drupal — like `@n8n/chat`, sourced from Drupal's session instead of the browser's localStorage.
+
+### Changed
+
+- The session-memory spec is wired and running: the thread key becomes n8n's session id, only the newest message travels, and the history length reaches n8n — proven end to end. The README explains the `@n8n/chat` parallel and that the chat trigger's Load Previous Session setting is n8n's own concern, not Drupal's.
+- Instructions and History context length are documented as forwarded context, not inert settings.
+
 ## [0.1.1] - 2026-07-18
 
 ### Added
