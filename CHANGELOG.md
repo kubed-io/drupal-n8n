@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Site tag: one n8n workflow tag per site scopes which agents become models, read through the config factory so the Domain module gives each subsite its own tag for free. Empty tag offers every qualifying workflow.
 - The Drupal signature: every message carries `metadata.{source, site, assistant, instructions}` — the conversation stays clean while a workflow can identify Drupal traffic and read per-assistant context, so one generic agent can serve many assistants.
 - The integration suite runs for real: fixture workflows preloaded through n8n's own API, live Behat coverage for the connection, model discovery incl. the site tag and two-door workflows, the provider surfaces, the signature, and a multisite scenario driving a real per-domain tag override.
+- The signature carries the assistant's clean instructions — a zero-detail assistant forwards none, an extended assistant forwards exactly its Instructions field, both proven by driving a real assistant end to end.
+
+### Fixed
+
+- `metadata.instructions` no longer leaks the agent loop's per-turn runtime framing; it now carries the assistant's own instructions, read from the agent entity, so it is stable and clean.
 
 ### Changed
 

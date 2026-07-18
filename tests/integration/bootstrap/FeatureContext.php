@@ -15,8 +15,9 @@ use PHPUnit\Framework\Assert;
  *
  * Wired: admin-connection, model-discovery incl. the site tag and the multisite
  * domain scenario, agent-exclusion's provider-surface checks, and the Drupal
- * signature. Still tagged for later: everything needing an ai_assistant entity
- * in the loop — those land when the suite grows an assistant fixture.
+ * signature — including the two scenarios that build a real assistant and run it
+ * end to end. Still tagged for later: the assistant-chat round trip and its
+ * failure edges, which want a chat block, not just the runner.
  *
  * A `@BeforeScenario` prerequisite hook checks the plumbing (Drupal booted, n8n
  * up) so the harness sanity that `harness.feature` used to give lives on as a
@@ -521,17 +522,19 @@ class FeatureContext implements Context {
   // ── The Drupal signature ───────────────────────────────────────────────────
 
   /**
-   * Sends a message through the real provider.
+   * Sends a message through the real provider, directly.
    *
    * The exact call the assistant pipeline makes, at the Echo Agent, which hands
-   * back everything it saw.
+   * back everything it saw. No assistant entity is involved, so this tests the
+   * transport signature — source, site, session, whole conversation — not the
+   * instructions, which come from a real assistant and are tested below.
    *
    * @When a message is sent to the :name agent through the provider
    */
   public function aMessageIsSentThroughTheProvider(string $name): void {
     $workflow = $this->n8nWorkflowByName($name);
     Assert::assertNotNull($workflow, "No fixture named '$name'.");
-    $reply = $this->providerChat($workflow['id'], 'hello from behat', 'behat-signature', 'You are a pirate');
+    $reply = $this->providerChat($workflow['id'], 'hello from behat', 'behat-signature');
     $decoded = json_decode($reply, TRUE);
     Assert::assertIsArray($decoded, "The $name fixture should echo JSON. Got: $reply");
     $this->echo = $decoded;
@@ -559,30 +562,86 @@ class FeatureContext implements Context {
   }
 
   /**
-   * Step: The signature carried the instructions the instructions.
-   *
-   * @Then the signature carried the instructions :instructions
-   */
-  public function theSignatureCarriedInstructions(string $instructions): void {
-    Assert::assertSame($instructions, $this->echo['metadata']['instructions'] ?? NULL, json_encode($this->echo['metadata'] ?? []));
-  }
-
-  /**
-   * Step: The conversation did not contain the text.
-   *
-   * @Then the conversation did not contain :text
-   */
-  public function theConversationDidNotContain(string $text): void {
-    Assert::assertStringNotContainsString($text, (string) ($this->echo['chatInput'] ?? ''), 'The conversation must stay clean.');
-  }
-
-  /**
    * Step: N8n received the session id the session.
    *
    * @Then n8n received the session id :session
    */
   public function n8nReceivedTheSessionId(string $session): void {
     Assert::assertSame($session, $this->echo['sessionId'] ?? NULL, json_encode($this->echo));
+  }
+
+  /**
+   * Step: An assistant backed by an n8n agent with no instructions.
+   *
+   * @Given an assistant :id backed by the :agent agent with no instructions
+   */
+  public function anAssistantWithNoInstructions(string $id, string $agent): void {
+    $this->createAssistantForFixture($id, $agent, '');
+  }
+
+  /**
+   * Step: An assistant backed by an n8n agent, carrying its own instructions.
+   *
+   * @Given an assistant :id backed by the :agent agent instructed to :instructions
+   */
+  public function anAssistantInstructed(string $id, string $agent, string $instructions): void {
+    $this->createAssistantForFixture($id, $agent, $instructions);
+  }
+
+  /**
+   * Step: A visitor chats with the assistant through the full pipeline.
+   *
+   * @When a visitor chats :message with the assistant :id
+   */
+  public function aVisitorChatsWithTheAssistant(string $message, string $id): void {
+    $reply = $this->chatThroughAssistant($id, $message);
+    $decoded = json_decode($reply, TRUE);
+    Assert::assertIsArray($decoded, "The assistant's model should echo JSON. Got: $reply");
+    $this->echo = $decoded;
+  }
+
+  /**
+   * Step: The message was marked as coming from Drupal.
+   *
+   * @Then the message was marked as coming from Drupal
+   */
+  public function theMessageWasMarkedFromDrupal(): void {
+    Assert::assertSame('drupal', $this->echo['metadata']['source'] ?? NULL, json_encode($this->echo));
+  }
+
+  /**
+   * Step: N8n received no instructions from Drupal.
+   *
+   * @Then n8n received no instructions from Drupal
+   */
+  public function n8nReceivedNoInstructions(): void {
+    Assert::assertArrayNotHasKey(
+      'instructions',
+      $this->echo['metadata'] ?? [],
+      'A zero-detail assistant must forward no instructions: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: N8n received the instructions the instructions.
+   *
+   * @Then n8n received the instructions :instructions
+   */
+  public function n8nReceivedInstructions(string $instructions): void {
+    Assert::assertSame(
+      $instructions,
+      $this->echo['metadata']['instructions'] ?? NULL,
+      'The assistant instructions should arrive clean: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Creates an assistant and its companion agent, pointed at a fixture workflow.
+   */
+  protected function createAssistantForFixture(string $id, string $agent, string $instructions): void {
+    $workflow = $this->n8nWorkflowByName($agent);
+    Assert::assertNotNull($workflow, "No fixture named '$agent'.");
+    $this->createN8nAssistant($id, $workflow['id'], $instructions);
   }
 
   // ── Support ────────────────────────────────────────────────────────────────

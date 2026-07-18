@@ -37,9 +37,12 @@ sets the pace.
 - `N8nClient::chatSend()` — POSTs the chat contract; refuses unknown models;
   errors on no `output`; 60s floor; key never leaks to the webhook.
 - `N8nProvider::chat()` — newest message only, session id from
-  `ai_agents_thread_`, system prompt dropped, and the **Drupal signature**
+  `ai_agents_thread_`, and the **Drupal signature**
   (`metadata.{source, site, assistant, instructions}`) on every call.
-- Unit tests cover all of the above.
+  `instructions` is the **agent entity's clean `system_prompt`**, not the
+  runtime prompt — absent when empty (zero-detail = passthrough).
+- Unit tests cover the client; the signature contract is proven by two live
+  integration scenarios driving a real assistant end to end.
 
 **What is real in tests (this PR):**
 - Integration suite went harness-only → live: `tests/workflows/*.json` fixture
@@ -70,6 +73,33 @@ made the EnricoMi *reporter* step hang ~11 min and fail a *passing* test run.
 Not our bug. If a required check fails only in "Publish test results", check
 `curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/kubed-io/drupal-n8n`
 before touching code.
+
+**Then (still 07-18) — proving the metadata contract, and the code it uncovered.**
+Dr K wanted the two assistant cases we'd advertised but never fully proven: a
+zero-detail assistant (pure passthrough) and an extended one (its instructions
+reach the agent). Implementing them in the integration tests uncovered exactly
+the missing code he suspected:
+- **The clean-instructions fix.** A live probe showed the provider was forwarding
+  `$input->getSystemPrompt()` — the agent loop's *runtime* prompt, which appends
+  per-turn framing like "This is the first time this agent has been run." That
+  framing is noise, changes every turn, and is not the admin's intent. Fixed:
+  `drupalSignature()` now reads the **agent entity's stored `system_prompt`** (the
+  clean Instructions the form saved) via an injected entity type manager. Proven:
+  extended → `instructions: "Always answer in French"` exactly; zero-detail →
+  **no instructions key at all**, a true passthrough. This ripples: the old
+  direct-provider signature test could fake a prompt and see it echoed; it no
+  longer can, so instructions are now proven through a **real assistant** instead.
+- **Two new scenarios in `drupal-signature.feature`**, driven end to end — create
+  an agent-backed assistant, run it through `ai_assistant_api.runner` against the
+  Echo Agent, read back the metadata. Needed `ai_agents` + `ai_assistant_api` in
+  the harness (`integration.yml` now requires and enables them). Verified live
+  against a temp echo workflow before pushing: bare → clean passthrough, fancy →
+  exact instructions.
+- **The live Kubed Assistant is now extendable** for Dr K's own smoke test: its
+  agent system message conditionally appends `{{ $json.metadata.instructions }}`
+  and confirms when it received custom instructions. Proven: a French-instructed
+  Drupal assistant made it answer *"Bonjour ! Je suis l'assistant du site Kubed et
+  je suis opérationnel."*
 
 **Then (still 07-18) — the spec files got pruned to pure business logic.** Dr K's
 rule: a `.feature` file is only ever about the actual product, never the test

@@ -111,7 +111,9 @@ jobs:
         composer config minimum-stability dev
         composer config prefer-stable true
         composer config repositories.module path "$GITHUB_WORKSPACE/module"
-        composer require "drupal/$MODULE:*" drupal/ai drupal/key drupal/domain drush/drush \
+        # ai_agents + ai_assistant_api back the signature scenarios that drive a
+        # real assistant end to end; domain backs the multisite scenario.
+        composer require "drupal/$MODULE:*" drupal/ai drupal/ai_agents drupal/key drupal/domain drush/drush \
           --no-interaction --no-progress
 
     - name: Install Behat deps
@@ -127,8 +129,9 @@ jobs:
           --site-name=n8n-integration -y
         # domain + domain_config back the @domain scenarios; with no domain
         # entities defined they are inert, so the no-Domain scenarios stay
-        # faithful tests of the no-Domain case.
-        ./vendor/bin/drush en "$MODULE" ai_provider_n8n domain domain_config -y
+        # faithful tests of the no-Domain case. ai_assistant_api + ai_agents let
+        # the signature scenarios build a real assistant and run it end to end.
+        ./vendor/bin/drush en "$MODULE" ai_provider_n8n ai_assistant_api ai_agents domain domain_config -y
 
     # ── Readiness gate ───────────────────────────────────────────────────────
     - name: Wait for n8n

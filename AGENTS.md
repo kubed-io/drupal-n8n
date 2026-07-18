@@ -94,6 +94,10 @@ Each cost someone a session. One line each; follow the link before you act on it
   entity unloadable AND undeletable through the entity API (saga Ch2 §1.1c).
 - A workflow is only a model when its chat trigger is **publicly available** —
   active alone still 404s. Fixtures too.
+- `metadata.instructions` is the **agent entity's stored `system_prompt`**, not
+  `$input->getSystemPrompt()` — the latter is the loop's per-turn runtime prompt
+  with framing noise. Empty instructions ⇒ the key is absent (zero-detail
+  passthrough). · spec: [drupal-signature.feature](features/drupal-signature.feature)
 
 **Domain config** → [saga §9.1](saga/Chapter_1_Packing_the_Van.md)
 

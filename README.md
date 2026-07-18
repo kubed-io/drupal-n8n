@@ -161,7 +161,7 @@ The conversation your agent sees carries exactly one thing: the visitor's newest
 | `source` | always `drupal` — how a workflow tells Drupal traffic from n8n's own chat |
 | `site` | the site's name |
 | `assistant` | which assistant is calling, so one agent serving several can tell them apart |
-| `instructions` | the assistant form's instructions, composed by Drupal — offered as a variable, never injected into the conversation |
+| `instructions` | the assistant's own Instructions field, clean — **absent entirely** when the assistant has none, so a zero-detail assistant is a pure passthrough. Offered as a variable, never injected into the conversation |
 
 **Everything in the signature is optional context, never an order.** Your agent's own system prompt lives in n8n and always wins; a workflow that ignores the metadata behaves exactly as it does in n8n's own chat window. But a workflow that *reads* it gets the module's distinctive trick: `{{ $json.metadata.instructions }}` as a variable in the agent's prompt, and one generic agent becomes a different persona per assistant.
 

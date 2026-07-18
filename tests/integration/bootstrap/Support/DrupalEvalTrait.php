@@ -77,4 +77,68 @@ trait DrupalEvalTrait {
     return (string) $this->drupalEvalJson($code)['text'];
   }
 
+  /**
+   * Creates an agent-backed assistant pointed at an n8n workflow.
+   *
+   * Mirrors what the assistant form does: a zero-tools companion agent whose
+   * system_prompt is the assistant's instructions, plus an assistant that names
+   * it and picks the n8n provider + the workflow as its model. Idempotent, so a
+   * re-run replaces rather than collides.
+   *
+   * The two `[]` defaults are not optional: an ai_assistant saved with a null
+   * llm_configuration or specific_error_messages becomes unloadable AND
+   * undeletable through the entity API. See saga Chapter 2 §1.1c.
+   */
+  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions): void {
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $etm = \Drupal::entityTypeManager();
+      foreach (['ai_assistant', 'ai_agent'] as $type) {
+        if ($existing = $etm->getStorage($type)->load(ID)) {
+          $existing->delete();
+        }
+      }
+      $etm->getStorage('ai_agent')->create([
+        'id' => ID, 'label' => ID, 'description' => 'behat',
+        'system_prompt' => INSTRUCTIONS, 'tools' => [],
+        'orchestration_agent' => TRUE, 'triage_agent' => FALSE, 'max_loops' => 3,
+      ])->save();
+      $etm->getStorage('ai_assistant')->create([
+        'id' => ID, 'label' => ID, 'description' => 'behat', 'ai_agent' => ID,
+        'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => [],
+        'instructions' => INSTRUCTIONS, 'allow_history' => 'session_one_thread',
+        'history_context_length' => '2', 'assistant_message' => 'hi',
+        'no_results_message' => 'no results', 'error_message' => 'error: [error_message]',
+        'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => [],
+        'system_prompt' => '', 'pre_action_prompt' => '', 'preprompt_instructions' => '',
+        'use_function_calling' => FALSE,
+      ])->save();
+      echo json_encode(TRUE);
+      PHP, [
+        'ID' => var_export($id, TRUE),
+        'WORKFLOW' => var_export($workflow_id, TRUE),
+        'INSTRUCTIONS' => var_export($instructions, TRUE),
+      ]));
+  }
+
+  /**
+   * Sends a message through the full assistant pipeline and returns the reply.
+   *
+   * This is the whole product path minus the chat block: the runner runs the
+   * companion agent, which calls our provider, which posts to n8n. Against the
+   * Echo Agent fixture the reply text is the echoed request, so a caller can
+   * read back exactly what n8n received.
+   */
+  protected function chatThroughAssistant(string $id, string $message): string {
+    return (string) $this->drupalEvalJson(strtr(<<<'PHP'
+      $runner = \Drupal::service('ai_assistant_api.runner');
+      $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
+      $runner->setUserMessage(new \Drupal\ai_assistant_api\Data\UserMessage(MSG));
+      $runner->setThrowException(TRUE);
+      echo json_encode($runner->process()->getNormalized()->getText());
+      PHP, [
+        'ID' => var_export($id, TRUE),
+        'MSG' => var_export($message, TRUE),
+      ]));
+  }
+
 }
