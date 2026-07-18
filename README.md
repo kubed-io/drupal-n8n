@@ -10,13 +10,14 @@ Use your n8n AI agents as Drupal AI Assistants. Your agent — with its own mode
 [![PHP](https://img.shields.io/badge/PHP-%E2%89%A58.3-777bb4?logo=php&logoColor=white)](composer.json)
 
 > **Status — this README is the specification.** It was written before the code, and
-> it describes the finished product so that the code has something to be measured
-> against. Today the **core loop is proven live**: the connection, model discovery,
-> chatting with an n8n agent through Drupal's chat block, and the session bridge all
-> work on a real cluster — see the proof-of-concept in
-> [`saga/Chapter_2_The_Drive.md`](saga/Chapter_2_The_Drive.md). What remains before a
-> release is hardening: error mapping, caching, tests, and the tag-sync convenience.
-> Follow along in [`saga/`](saga/).
+> it describes the finished product so the code has something to be measured against.
+> Today the **fundamental base is built and proven**: the connection, the site tag,
+> model discovery, chatting with an n8n agent through Drupal's chat block, the session
+> bridge, and the Drupal signature all work on a real cluster and are covered by a
+> live integration suite that runs against a real ephemeral n8n. What remains before a
+> `1.0` release is hardening — error mapping and discovery caching — and whatever the
+> next stops on the road turn up. The whole story, with receipts, is in
+> [`saga/Chapter_2_The_Drive.md`](saga/Chapter_2_The_Drive.md).
 
 ---
 
@@ -125,7 +126,7 @@ If you run several sites off one Drupal with the [Domain](https://www.drupal.org
 
 ### Make an assistant — this module does not do it for you
 
-Turning a model into a chat box is **your** call, not something this module automates, because it's a real design decision: one agent can back several assistants with different audiences and instructions (see [One agent, many personas](#one-agent-many-personas-planned)). Automating it would guess wrong.
+Turning a model into a chat box is **your** call, not something this module automates, because it's a real design decision: one agent can back several assistants with different audiences and instructions (see [One agent, many personas](#one-agent-many-personas)). Automating it would guess wrong.
 
 The setup is short:
 

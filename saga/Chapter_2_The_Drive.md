@@ -19,18 +19,37 @@
 
 ---
 
-## ⏱ Where we are RIGHT NOW — 2026-07-17 (handoff state)
+## 🏁 Milestone — 2026-07-18 · the fundamental base is built and proven
+
+> It doesn't look like much, and that's the point: **a whole lot, done with a
+> little.** The first stop is paved. What stands here is the fundamental base of
+> the app — a fully working proof of concept behind a complete build pipeline
+> with versioning, releases, and a live integration suite. Not a chapter close
+> (only Dr K closes chapters), a **milestone**: a very solid finish on this leg
+> of the drive.
+>
+> **What that base is, concretely:** a Drupal admin sets a URL, a key, and a
+> **site tag**; their tagged n8n chat agents appear as models; they make an
+> assistant, pick one, place a chat block, and talk to it — and the assistant's
+> own instructions ride along as a clean Drupal signature the n8n agent can
+> read. Every layer of that is proven on a real cluster **and** guarded by a
+> live suite that runs the whole thing against a real ephemeral n8n. The smoothie
+> is blended and poured; what's left is polish and the rest of the road.
+
+## ⏱ Where we are RIGHT NOW — 2026-07-18 (handoff state)
 
 > For an agent picking this up cold. Read this, then §4 (the route) and the
 > session log at the bottom. Everything here is on **branch `ch2-site-tag`,
-> [PR #12](https://github.com/kubed-io/drupal-n8n/pull/12), open, not merged.**
-> PR #11 (the first sip) is already **merged to main**.
+> [PR #12](https://github.com/kubed-io/drupal-n8n/pull/12), green, awaiting Dr K's
+> review + merge.** PR #11 (the first sip) is already **merged to main**.
 
-**Still at Stop 0/1.** We are *at the first stop*, laying real pavement while
-the mental model of the whole trip firms up. Not further along than that — Dr K
-sets the pace.
+**Still at the first stop — but it's paved now.** We are *at the first stop*,
+and this milestone is what "well-paved" looks like. Not further along the route
+than that; Dr K sets the pace.
 
 **What is real in code (branch `ch2-site-tag`):**
+- `N8nSettingsForm` + drush `n8n:set-url|set-key|set-tag|test` — the connection
+  UI and CLI, including the **Site tag** field.
 - `N8nClient::listChatWorkflows()` — one model per public chat trigger; the
   **site tag** filters via `/workflows?tags=` (empty = all). Domain override
   gives per-domain tags for free.
@@ -58,14 +77,16 @@ sets the pace.
   `drupal-signature.feature` (one contract, one feature).
 - Streaming is structurally impossible on the new API (§1.3a). Fork F dead.
 
-**CI status:** PR #12 is **fully green** as of `3d7f8ce`. All seven checks pass;
-the integration suite runs **23 scenarios / 111 steps, all passing** against a
-real ephemeral n8n — model discovery incl. the site tag and two-door
-workflows, the provider surfaces, the Drupal signature, and the live multisite
-domain-override scenario. It took three red rounds to get there, each a real
-layer: (1) phpcs 41 errors + the minted key lacked `tag:list` scope so preload
-403'd; (2) 1 phpcs error + preload resolved its fixtures dir one level too
-shallow; (3) green. **Awaiting Dr K's review + merge** — the ruleset needs one
+**CI status:** PR #12 is **fully green**. All seven checks pass; the integration
+suite runs **23 scenarios against a real ephemeral n8n** — model discovery incl.
+the site tag and two-door workflows, the provider surfaces, the Drupal signature
+(zero-detail passthrough + extended assistant, driven end to end), and the live
+multisite domain-override scenario. Getting here cost several red rounds, each a
+real layer paid down: phpcs docblock rules, the minted key's missing `tag:list`
+scope, a preload path off by one directory, a GitHub API outage that failed a
+*passing* run through the reporter, and test-isolation (created assistants
+leaking their workflow id into config → an `@AfterScenario` teardown, the
+sibling's pattern). **Awaiting Dr K's review + merge** — the ruleset needs one
 approval and an agent cannot self-approve.
 
 **The standing gotcha:** GitHub's REST API had a global outage on 07-16 that
@@ -119,8 +140,19 @@ plumbing or the CI. Applied:
   assistant-chat, session-memory, drupal-signature. Every one is product
   behaviour.
 
-**Immediate next steps:** push → watch CI (expect green; only @todo/​harness
-scenarios changed, live ones untouched) → then the route continues at §4.
+**Then (still 07-18) — the missing knob, and the milestone.** Dr K went to set
+the site tag in the UI and found no field: it had config, schema, the discovery
+filter, and drush plumbing, but the settings form was never given the field.
+Fixed — a **Site tag** textfield on the form and an `n8n:set-tag` command to
+match `set-url`/`set-key`. A good reminder that "the filter works" and "a human
+can reach it" are two different done. Then Dr K called the milestone: the
+fundamental base is built and proven — the POC, the pipeline, the versioning,
+the live suite — a whole lot with a little, and a solid finish on this leg. This
+README/saga pass is that wrap.
+
+**Immediate next steps:** none forced — the base is solid and green. When the
+road resumes, it's §4: error mapping and discovery caching are the nearest
+polish; the horizon (webform, tools via MCP, the rest) waits on Dr K.
 
 ---
 

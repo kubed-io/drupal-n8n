@@ -159,14 +159,16 @@ vendor/bin/behat --config behat.dist.yml                             # from test
 
 drush n8n:set-url <url>
 drush n8n:set-key <key_id>     # a Key entity's name, never the secret
+drush n8n:set-tag <tag>        # scope discovery to this tag; empty clears it
 drush n8n:test
 ```
 
-**Those three drush commands are all that exist.** The README also documents
-`n8n:models`, `n8n:chat` and `n8n:set-tag` — that file is the **specification**, so it
-describes the finished product. Do not cite them as working. The provider's `chat()`,
-model discovery, and the **site-tag filter** ARE real as of Chapter 2, but live only in
-the working copy until released.
+**Those four drush commands exist**, and the **Site tag** field is on the settings
+form. The README also documents `n8n:models` and `n8n:chat` — not yet built; that file
+is the **specification**, so it describes the finished product. Do not cite those two as
+working. The provider's `chat()`, model discovery, the **site-tag filter**, and the
+**Drupal signature** ARE real as of Chapter 2, but live only in the working copy until
+released.
 
 **We do NOT generate assistants.** The old `n8n:sync` / `n8n:assistant` idea is
 dropped — turning a model into an assistant is the admin's design choice (one model can
