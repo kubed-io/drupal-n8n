@@ -1,0 +1,84 @@
+{
+  "name": "Two Doors",
+  "nodes": [
+    {
+      "id": "aaaa1111-0000-4000-8000-000000000007",
+      "name": "Front Door",
+      "webhookId": "aaaa1111-0000-4000-8000-000000000007",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -120
+      ],
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "authentication": "none",
+        "options": {
+          "responseMode": "lastNode"
+        }
+      }
+    },
+    {
+      "id": "aaaa1111-0000-4000-8000-000000000008",
+      "name": "Admin Door",
+      "webhookId": "aaaa1111-0000-4000-8000-000000000008",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        120
+      ],
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "authentication": "none",
+        "options": {
+          "responseMode": "lastNode"
+        }
+      }
+    },
+    {
+      "id": "code-echo",
+      "name": "Echo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { output: JSON.stringify($input.first().json) } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Front Door": {
+      "main": [
+        [
+          {
+            "node": "Echo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin Door": {
+      "main": [
+        [
+          {
+            "node": "Echo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -32,7 +32,7 @@ link before you act on it.
 | What ships | `n8n` (connection) + `ai_provider_n8n` (the headline). | [README § modules in this repo](README.md#modules-in-this-repo) |
 | What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction, not a tool bridge — MCP owns tools in both directions. | [README § not this module](README.md#not-this-module) |
 | Where the work stands | The **core loop is proven live** — connection, discovery, chat, session bridge. Left: hardening, tests, tag-sync. | [saga Ch2](saga/Chapter_2_The_Drive.md) |
-| How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [features/README § how a feature becomes a feature](features/README.md#how-a-feature-becomes-a-feature) |
+| How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [CONTRIBUTING § the spec comes first](CONTRIBUTING.md#the-spec-comes-first--and-the-readme-comes-before-the-spec) |
 
 ---
 
@@ -57,7 +57,7 @@ Violating one breaks the product's thesis, not just its style.
 
 - **n8n owns the brain** — model, prompt, memory, tools. Never add a Drupal setting
   for something n8n owns. → [CONTRIBUTING § n8n owns the brain](CONTRIBUTING.md#n8n-owns-the-brain--never-take-it-back)
-  · spec: [prompt-ownership.feature](features/prompt-ownership.feature)
+  · spec: [drupal-signature.feature](features/drupal-signature.feature)
 - **n8n is an assistant, never an agent.** We support `chat` and decline the
   `ChatTools` capability; Drupal's own filtering does the rest. **Writing a
   `hook_form_alter` to hide n8n means you broke the contract instead of fixing it.**
@@ -94,6 +94,10 @@ Each cost someone a session. One line each; follow the link before you act on it
   entity unloadable AND undeletable through the entity API (saga Ch2 §1.1c).
 - A workflow is only a model when its chat trigger is **publicly available** —
   active alone still 404s. Fixtures too.
+- `metadata.instructions` is the **agent entity's stored `system_prompt`**, not
+  `$input->getSystemPrompt()` — the latter is the loop's per-turn runtime prompt
+  with framing noise. Empty instructions ⇒ the key is absent (zero-detail
+  passthrough). · spec: [drupal-signature.feature](features/drupal-signature.feature)
 
 **Domain config** → [saga §9.1](saga/Chapter_1_Packing_the_Van.md)
 
@@ -113,7 +117,7 @@ Each cost someone a session. One line each; follow the link before you act on it
 - **Behat: a literal `(` or `)` in step text** becomes a regex group → the step goes
   undefined and **the suite fails while looking green**.
 - **Fixtures are LLM-free** and must stay so.
-  → [features/README § fixtures](features/README.md#fixtures--the-tests-own-their-workflows)
+  → [CONTRIBUTING § fixtures are LLM-free](CONTRIBUTING.md#fixtures-are-llm-free-and-must-stay-that-way)
 
 **n8n** → [saga §7.1](saga/Chapter_1_Packing_the_Van.md)
 
@@ -155,14 +159,21 @@ vendor/bin/behat --config behat.dist.yml                             # from test
 
 drush n8n:set-url <url>
 drush n8n:set-key <key_id>     # a Key entity's name, never the secret
+drush n8n:set-tag <tag>        # scope discovery to this tag; empty clears it
 drush n8n:test
 ```
 
-**Those three drush commands are all that exist.** The README also documents
-`n8n:models`, `n8n:chat`, `n8n:set-tag`, `n8n:sync` and `n8n:assistant` — that file
-is the **specification**, so it describes the finished product. Do not cite them as
-working. The provider's `chat()` and model discovery ARE real as of the Chapter 2
-POC, but live only in the working copy until released.
+**Those four drush commands exist**, and the **Site tag** field is on the settings
+form. The README also documents `n8n:models` and `n8n:chat` — not yet built; that file
+is the **specification**, so it describes the finished product. Do not cite those two as
+working. The provider's `chat()`, model discovery, the **site-tag filter**, and the
+**Drupal signature** ARE real as of Chapter 2, but live only in the working copy until
+released.
+
+**We do NOT generate assistants.** The old `n8n:sync` / `n8n:assistant` idea is
+dropped — turning a model into an assistant is the admin's design choice (one model can
+back several assistants). The module never touches `ai_assistant` entities. The site
+tag's only job is scoping model discovery, one tag per site (Domain-overridable).
 
 `./dev.sh` pushes this working copy into the live Drupal pod for runtime probing.
 **Read its header before using `enable`** — the code is ephemeral but `drush en`

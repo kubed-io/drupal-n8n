@@ -139,11 +139,20 @@ class N8nClient implements N8nClientInterface {
    */
   public function listChatWorkflows(): array {
     $models = [];
-    $result = $this->request('GET', '/api/v1/workflows', [
+    $query = [
       'active' => 'true',
       'excludePinnedData' => 'true',
       'limit' => 100,
-    ]);
+    ];
+    // The site tag scopes discovery to the workflows meant for this site. Read
+    // through configFactory so a Domain override gives each subsite its own tag
+    // for free (see README "Different agents per site"). Empty tag means no
+    // filter — every qualifying workflow is offered.
+    $tag = trim((string) $this->getConfig()->get('tag'));
+    if ($tag !== '') {
+      $query['tags'] = $tag;
+    }
+    $result = $this->request('GET', '/api/v1/workflows', $query);
     foreach ($result['data'] ?? [] as $workflow) {
       $doors = [];
       foreach ($workflow['nodes'] ?? [] as $node) {

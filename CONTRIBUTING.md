@@ -85,7 +85,7 @@ The agent's model, prompt, memory, tools and RAG live in n8n. Drupal owns the ch
 box and the door. **A PR that adds a Drupal setting for something n8n already owns
 will be rejected**, however convenient it seems. When Drupal hands us a system
 prompt, we drop it. When Drupal offers history, we ignore it. See
-[`features/prompt-ownership.feature`](features/prompt-ownership.feature) — that
+[`features/drupal-signature.feature`](features/drupal-signature.feature) — that
 behaviour is specified, not incidental.
 
 The corollary: **n8n must never be selectable where a raw model is required.** The
@@ -310,6 +310,25 @@ the transport, not the intelligence.* It also keeps CI free, deterministic and f
 **Do not add an LLM-backed fixture** to satisfy a scenario. If a scenario can only
 pass with a real model, the scenario is testing n8n rather than us — reframe it or
 tag it `@todo`.
+
+The fixtures are created through n8n's own public API by
+[`tests/integration/bin/preload-n8n.sh`](tests/integration/bin/preload-n8n.sh) from
+the workflow JSON in [`tests/workflows/`](tests/workflows) — a **control case**, so
+scenarios act on genuinely pre-existing workflows rather than ones the module made.
+Unless noted, a fixture is active, its chat trigger is public, and it carries the
+suite's site tag `mysite`.
+
+| Fixture | Shape | Pins |
+|---|---|---|
+| Echo Agent | echoes message + session id + metadata | what we sent n8n, and what we did not |
+| Canned Agent | returns `the answer is 42`; **no tag** | untagged workflows are not offered; the answer reaches the visitor |
+| Rename Me | a canned agent, renamed mid-suite | n8n owns the name |
+| Webhook Only | a webhook trigger, no chat trigger | the chat-trigger filter |
+| Inactive Agent | a chat trigger left **inactive** | the active filter |
+| Private Agent | active, but **not** publicly available | the public filter — active is not enough |
+| Two Doors | one workflow, **two** public chat triggers | each trigger is its own model |
+| Shop Bot | canned agent tagged **`shopsite`** | a second domain sees only its own agents |
+| JSON / Slow / Failing *(not preloaded yet)* | JSON answer / over-timeout / throws | the assistant-chat happy and failure edges — land with those steps |
 
 ### Behat gotcha
 

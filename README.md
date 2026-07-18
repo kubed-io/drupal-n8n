@@ -10,13 +10,14 @@ Use your n8n AI agents as Drupal AI Assistants. Your agent — with its own mode
 [![PHP](https://img.shields.io/badge/PHP-%E2%89%A58.3-777bb4?logo=php&logoColor=white)](composer.json)
 
 > **Status — this README is the specification.** It was written before the code, and
-> it describes the finished product so that the code has something to be measured
-> against. Today the **core loop is proven live**: the connection, model discovery,
-> chatting with an n8n agent through Drupal's chat block, and the session bridge all
-> work on a real cluster — see the proof-of-concept in
-> [`saga/Chapter_2_The_Drive.md`](saga/Chapter_2_The_Drive.md). What remains before a
-> release is hardening: error mapping, caching, tests, and the tag-sync convenience.
-> Follow along in [`saga/`](saga/).
+> it describes the finished product so the code has something to be measured against.
+> Today the **fundamental base is built and proven**: the connection, the site tag,
+> model discovery, chatting with an n8n agent through Drupal's chat block, the session
+> bridge, and the Drupal signature all work on a real cluster and are covered by a
+> live integration suite that runs against a real ephemeral n8n. What remains before a
+> `1.0` release is hardening — error mapping and discovery caching — and whatever the
+> next stops on the road turn up. The whole story, with receipts, is in
+> [`saga/Chapter_2_The_Drive.md`](saga/Chapter_2_The_Drive.md).
 
 ---
 
@@ -91,11 +92,17 @@ You don't configure this. It isn't a checkbox. It's what the module *is*.
 
 This is a high-level showcase. Each feature links to its **executable specification** — a Gherkin `.feature` file under [`features/`](features/) that describes the exact behaviour in plain language and drives the integration tests — and to the **code** that implements it. Docs, tests, and code stay aligned: the `.feature` files *are* the requirements.
 
+### Tag your agents for the site
+
+Drupal needs to know which of your n8n agents belong to this site — you may have dozens of chat workflows and want only some of them here. That's the **site tag**: one n8n workflow tag, set once in the connection settings. Tag a workflow `mysite` in n8n, put `mysite` in the setting, and its chat agents are this site's models. Leave the setting empty and every qualifying workflow is offered — the friendly default for a fresh install.
+
+It's the same idea as the sibling [nextcloud-n8n](https://github.com/kubed-io/nextcloud-n8n), where one tag maps to one folder. Here **one tag maps to one site.**
+
 ### Your n8n agents appear as models
 
-Point Drupal at n8n, and your chat agents become selectable models, listed by name right next to `gpt-4o`. Nobody presses a sync button: the list is read **live** from n8n's REST API every time it's built. Make an agent in n8n and it's there; rename it and the dropdown follows; delete it and it's gone.
+With the tag set, your chat agents become selectable models, listed by name right next to `gpt-4o`. Nobody presses a sync button: the list is read **live** from n8n's REST API every time it's built. Tag an agent in n8n and it's there; rename it and the dropdown follows; untag or delete it and it's gone.
 
-A workflow qualifies when **all three** are true — and each rules out a different way of not being able to answer:
+A workflow's trigger qualifies when **all three** are true — and each rules out a different way of not being able to answer:
 
 | Requirement | Why |
 |---|---|
@@ -113,32 +120,23 @@ Nothing about your workflows is copied into Drupal's config. The only trace is t
 
 📋 spec: [`features/model-discovery.feature`](features/model-discovery.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php), [`src/N8nClient.php`](src/N8nClient.php)
 
-### Tag it in n8n, chat with it in Drupal
+### Different agents per site (multisite)
 
-Picking a model still means making an assistant by hand. If you'd rather publish an agent to your site by **tagging it**, set an **Assistant tag** in the connection settings and tag your workflows in n8n. `drush n8n:sync` then makes sure there's an assistant for each one.
+If you run several sites off one Drupal with the [Domain](https://www.drupal.org/project/domain) module, each subsite can have its **own** tag — a customer-facing site sees the `shop` agents, the intranet sees the `staff` ones. You set a domain-specific override of the site tag, and because the module reads the tag through Drupal's config system, the right agents appear per domain with no extra wiring. The default site just uses the global tag, and behaves identically whether or not Domain is installed.
 
-Sync decides **which assistants exist** — and nothing else. It never copies behaviour in either direction: your roles, greeting and error messages are never pushed to n8n, and n8n's prompt, model, memory and tools are never pulled into Drupal. Same ownership split as everywhere else, applied to lifecycle.
+### Make an assistant — this module does not do it for you
 
-| What you do | What happens |
-|---|---|
-| Tag a workflow | An assistant appears, wired to it |
-| Rename it in n8n | The assistant's label follows — matched on workflow id, so it's never duplicated |
-| **Remove the tag** | The assistant is **disabled, not deleted** — its chat box stops rendering, and everything you configured survives |
-| Re-add the tag | It's enabled again, settings intact |
-| Delete the assistant in Drupal | The workflow is **untagged** in n8n so it stays gone. The workflow itself is untouched |
+Turning a model into a chat box is **your** call, not something this module automates, because it's a real design decision: one agent can back several assistants with different audiences and instructions (see [One agent, many personas](#one-agent-many-personas)). Automating it would guess wrong.
 
-Two rules keep this predictable:
+The setup is short:
 
-- **Sync only manages assistants it created.** They're stamped with the workflow they came from. An assistant you built by hand is never disabled, deleted, or overwritten by sync — even if it points at the same workflow.
-- **Sync never overwrites what Drupal owns.** Change the roles or the greeting on a synced assistant and the next sync leaves them alone.
+1. **Configuration → AI → AI Assistants → Add assistant.**
+2. Set **AI Provider** to `n8n`.
+3. Pick your agent as the **Model** — the list is your tagged chat triggers.
+4. Set **Allow history** to *one thread per session*, choose the **roles** who may chat, and write the greeting and error messages.
+5. Place the **AI Chatbot** block (Block layout) and point it at this assistant.
 
-📋 spec: [`features/assistant-sync.feature`](features/assistant-sync.feature)
-
-### Chat with an n8n agent
-
-Create an AI Assistant, set its **AI Provider** to `n8n`, pick one of your agents as the **model**, and place the chat block. That's the whole setup. A visitor's message goes to your agent's Chat Trigger; the agent's answer comes back in the chat box.
-
-Everything the agent does in between — which model it calls, which tools it fires, what it remembers — is invisible to Drupal, and deliberately so.
+A visitor's message now goes to your agent's Chat Trigger and the answer comes back in the chat box. Everything the agent does in between — which model it calls, which tools it fires, what it remembers — is invisible to Drupal, deliberately.
 
 📋 spec: [`features/assistant-chat.feature`](features/assistant-chat.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
@@ -155,21 +153,24 @@ Only the newest message is sent. Drupal never replays history, because n8n alrea
 
 📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
-### n8n owns the prompt
+### Every message carries the Drupal signature
 
-Your agent's system prompt lives in n8n, on the AI Agent node. Drupal's assistant has prompt fields of its own — **this module ignores them**, because your agent already has instructions and two sets would fight.
+The conversation your agent sees carries exactly one thing: the visitor's newest message. Everything else Drupal knows rides along as **metadata** — the Drupal signature:
 
-This is the single most surprising thing about the module, so it is stated plainly here and in the UI: see [Settings that intentionally do nothing](#settings-that-intentionally-do-nothing).
+| Key | Carries |
+|---|---|
+| `source` | always `drupal` — how a workflow tells Drupal traffic from n8n's own chat |
+| `site` | the site's name |
+| `assistant` | which assistant is calling, so one agent serving several can tell them apart |
+| `instructions` | the assistant's own Instructions field, clean — **absent entirely** when the assistant has none, so a zero-detail assistant is a pure passthrough. Offered as a variable, never injected into the conversation |
 
-📋 spec: [`features/prompt-ownership.feature`](features/prompt-ownership.feature)
+**Everything in the signature is optional context, never an order.** Your agent's own system prompt lives in n8n and always wins; a workflow that ignores the metadata behaves exactly as it does in n8n's own chat window. But a workflow that *reads* it gets the module's distinctive trick: `{{ $json.metadata.instructions }}` as a variable in the agent's prompt, and one generic agent becomes a different persona per assistant.
 
-### One agent, many personas *(planned)*
+### One agent, many personas
 
-Because several assistants can point at the same model, one n8n agent can serve many faces of your site — and the **metadata** each message carries is what tells them apart. Every chat POST already includes metadata; the plan is to let each assistant contribute its own (its name, its instructions, custom key/values), so a *generic* agent flow in n8n can read `metadata.instructions` and adapt: one workflow, a formal persona on the support page, a playful one on the blog.
+That signature is what makes assistants **overrideable implementations** of one agent. Nothing on the assistant form has to be filled in, and its name doesn't have to match the workflow's — but each assistant that points at the same model sends its own signature. A formal persona on the support page, a playful one on the blog: same workflow, two assistants, `metadata.instructions` doing the differentiating. Or ignore all of it and run one assistant per agent — both are first-class.
 
-This is also where the assistant form's inert fields earn their keep, optionally: fill in **Instructions** and it travels as metadata for your workflow to use — or leave it empty and the workflow's own prompt stands alone. Nothing is forwarded unless you switch it on.
-
-> **Status:** the metadata channel is proven end-to-end; the per-assistant configuration is designed but not yet specified. This paragraph is the idea's front door, per [how a feature becomes a feature](features/README.md#how-a-feature-becomes-a-feature).
+📋 spec: [`features/drupal-signature.feature`](features/drupal-signature.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
 ### Not an agent brain (on purpose)
 
@@ -185,7 +186,7 @@ If n8n is unreachable, the key is wrong, or a workflow isn't active, the chat bo
 
 An **inactive workflow** is the most common one: n8n only serves a production chat webhook while the workflow is active.
 
-📋 spec: [`features/connection-failure.feature`](features/connection-failure.feature)
+📋 spec: [`features/assistant-chat.feature`](features/assistant-chat.feature) — the failure edges of the round trip
 
 ### Drupal answers back
 
@@ -227,7 +228,7 @@ Configure at **Configuration → AI → n8n** (`/admin/config/ai/n8n`). Shared b
 |---|---|
 | **n8n URL** | Base URL of your n8n instance, e.g. `https://n8n.example.com`. No trailing slash. |
 | **API Key** | Your n8n API key, selected from the [Key](https://www.drupal.org/project/key) module. Sent as `X-N8N-API-KEY`. Stored by Key, never echoed back. Used to list workflows — *not* to post chat messages. |
-| **Assistant tag** | Optional. The n8n tag that marks a workflow as meant for this site. Leave it empty and every qualifying workflow is offered as a model. Set it and the list narrows to tagged workflows — and `drush n8n:sync` can keep an assistant per tag. |
+| **Site tag** | The n8n workflow tag that marks an agent as belonging to this site — one tag per site. Only tagged workflows contribute models. Leave it empty and every qualifying workflow is offered, which is the friendly default for a fresh install. With the [Domain](https://www.drupal.org/project/domain) module, each subsite can override this with its own tag. |
 | **Test connection** | Calls `GET /api/v1/workflows?limit=1` and reports what it finds. Verifies the URL and the key in one click. |
 
 The API key is managed by the **Key** module rather than by this module, so it can live in a file, an environment variable, or a secrets manager — whatever your site already uses. This module never handles a raw secret of its own.
@@ -302,21 +303,11 @@ drush n8n:models
 drush n8n:models --all
 ```
 
-### Publish tagged agents as assistants
+### Set the site tag
 
 ```sh
-# Set the tag that marks a workflow as meant for this site
-drush n8n:set-tag drupal
-
-# Make sure there is an assistant for every tagged workflow.
-# Creates what is missing, re-enables what came back, disables what lost its tag.
-drush n8n:sync
-
-# Preview without writing anything
-drush n8n:sync --dry-run
-
-# Make one assistant from one workflow, tag or no tag
-drush n8n:assistant <workflow-id>
+# Only workflows carrying this n8n tag are offered as models for this site
+drush n8n:set-tag mysite
 ```
 
 ### Smoke-test an agent

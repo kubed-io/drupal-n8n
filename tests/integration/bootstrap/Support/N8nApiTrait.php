@@ -96,4 +96,44 @@ trait N8nApiTrait {
     return NULL;
   }
 
+  /**
+   * Whether a workflow carries a tag, per n8n itself.
+   *
+   * The other side of every tag assertion.
+   */
+  protected function n8nWorkflowHasTag(string $name, string $tag): bool {
+    $workflow = $this->n8nWorkflowByName($name);
+    foreach ($workflow['tags'] ?? [] as $t) {
+      if (($t['name'] ?? NULL) === $tag) {
+        return TRUE;
+      }
+    }
+    return FALSE;
+  }
+
+  /**
+   * Renames a workflow through n8n's own API.
+   *
+   * The public API's update wants the full body back, so this is read-modify-
+   * write on name/nodes/connections/settings only — the writable set.
+   */
+  protected function n8nRenameWorkflow(string $name, string $new_name): void {
+    $workflow = $this->n8nWorkflowByName($name);
+    if ($workflow === NULL) {
+      throw new \RuntimeException("No workflow named '$name' to rename.");
+    }
+    $response = $this->n8n()->put('/api/v1/workflows/' . $workflow['id'], [
+      'headers' => ['X-N8N-API-KEY' => $this->n8nApiKey()],
+      'json' => [
+        'name' => $new_name,
+        'nodes' => $workflow['nodes'],
+        'connections' => $workflow['connections'],
+        'settings' => $workflow['settings'] ?? ['executionOrder' => 'v1'],
+      ],
+    ]);
+    if ($response->getStatusCode() >= 300) {
+      throw new \RuntimeException("Renaming '$name' failed: HTTP " . $response->getStatusCode() . ' ' . (string) $response->getBody());
+    }
+  }
+
 }

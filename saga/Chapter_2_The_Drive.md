@@ -19,6 +19,143 @@
 
 ---
 
+## 🏁 Milestone — 2026-07-18 · the fundamental base is built and proven
+
+> It doesn't look like much, and that's the point: **a whole lot, done with a
+> little.** The first stop is paved. What stands here is the fundamental base of
+> the app — a fully working proof of concept behind a complete build pipeline
+> with versioning, releases, and a live integration suite. Not a chapter close
+> (only Dr K closes chapters), a **milestone**: a very solid finish on this leg
+> of the drive.
+>
+> **What that base is, concretely:** a Drupal admin sets a URL, a key, and a
+> **site tag**; their tagged n8n chat agents appear as models; they make an
+> assistant, pick one, place a chat block, and talk to it — and the assistant's
+> own instructions ride along as a clean Drupal signature the n8n agent can
+> read. Every layer of that is proven on a real cluster **and** guarded by a
+> live suite that runs the whole thing against a real ephemeral n8n. The smoothie
+> is blended and poured; what's left is polish and the rest of the road.
+
+## ⏱ Where we are RIGHT NOW — 2026-07-18 (handoff state)
+
+> For an agent picking this up cold. Read this, then §4 (the route) and the
+> session log at the bottom. Everything here is on **branch `ch2-site-tag`,
+> [PR #12](https://github.com/kubed-io/drupal-n8n/pull/12), green, awaiting Dr K's
+> review + merge.** PR #11 (the first sip) is already **merged to main**.
+
+**Still at the first stop — but it's paved now.** We are *at the first stop*,
+and this milestone is what "well-paved" looks like. Not further along the route
+than that; Dr K sets the pace.
+
+**What is real in code (branch `ch2-site-tag`):**
+- `N8nSettingsForm` + drush `n8n:set-url|set-key|set-tag|test` — the connection
+  UI and CLI, including the **Site tag** field.
+- `N8nClient::listChatWorkflows()` — one model per public chat trigger; the
+  **site tag** filters via `/workflows?tags=` (empty = all). Domain override
+  gives per-domain tags for free.
+- `N8nClient::chatSend()` — POSTs the chat contract; refuses unknown models;
+  errors on no `output`; 60s floor; key never leaks to the webhook.
+- `N8nProvider::chat()` — newest message only, session id from
+  `ai_agents_thread_`, and the **Drupal signature**
+  (`metadata.{source, site, assistant, instructions}`) on every call.
+  `instructions` is the **agent entity's clean `system_prompt`**, not the
+  runtime prompt — absent when empty (zero-detail = passthrough).
+- Unit tests cover the client; the signature contract is proven by two live
+  integration scenarios driving a real assistant end to end.
+
+**What is real in tests (this PR):**
+- Integration suite went harness-only → live: `tests/workflows/*.json` fixture
+  pack (sibling pattern — JSON files + python3, **no jq**), `preload-n8n.sh`
+  seeds them through n8n's own API, `mint-n8n-key.sh` now carries **tag
+  scopes**, `FeatureContext` has ~30 steps, and `drupal/domain` drives a real
+  `@domain` multisite scenario.
+
+**Dropped / decided (do not resurrect):**
+- **No auto-generated assistants.** Making a model into an assistant is the
+  admin's choice. The module never touches `ai_assistant` entities.
+- `assistant-sync.feature` deleted; `prompt-ownership.feature` merged into
+  `drupal-signature.feature` (one contract, one feature).
+- Streaming is structurally impossible on the new API (§1.3a). Fork F dead.
+
+**CI status:** PR #12 is **fully green**. All seven checks pass; the integration
+suite runs **23 scenarios against a real ephemeral n8n** — model discovery incl.
+the site tag and two-door workflows, the provider surfaces, the Drupal signature
+(zero-detail passthrough + extended assistant, driven end to end), and the live
+multisite domain-override scenario. Getting here cost several red rounds, each a
+real layer paid down: phpcs docblock rules, the minted key's missing `tag:list`
+scope, a preload path off by one directory, a GitHub API outage that failed a
+*passing* run through the reporter, and test-isolation (created assistants
+leaking their workflow id into config → an `@AfterScenario` teardown, the
+sibling's pattern). **Awaiting Dr K's review + merge** — the ruleset needs one
+approval and an agent cannot self-approve.
+
+**The standing gotcha:** GitHub's REST API had a global outage on 07-16 that
+made the EnricoMi *reporter* step hang ~11 min and fail a *passing* test run.
+Not our bug. If a required check fails only in "Publish test results", check
+`curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/kubed-io/drupal-n8n`
+before touching code.
+
+**Then (still 07-18) — proving the metadata contract, and the code it uncovered.**
+Dr K wanted the two assistant cases we'd advertised but never fully proven: a
+zero-detail assistant (pure passthrough) and an extended one (its instructions
+reach the agent). Implementing them in the integration tests uncovered exactly
+the missing code he suspected:
+- **The clean-instructions fix.** A live probe showed the provider was forwarding
+  `$input->getSystemPrompt()` — the agent loop's *runtime* prompt, which appends
+  per-turn framing like "This is the first time this agent has been run." That
+  framing is noise, changes every turn, and is not the admin's intent. Fixed:
+  `drupalSignature()` now reads the **agent entity's stored `system_prompt`** (the
+  clean Instructions the form saved) via an injected entity type manager. Proven:
+  extended → `instructions: "Always answer in French"` exactly; zero-detail →
+  **no instructions key at all**, a true passthrough. This ripples: the old
+  direct-provider signature test could fake a prompt and see it echoed; it no
+  longer can, so instructions are now proven through a **real assistant** instead.
+- **Two new scenarios in `drupal-signature.feature`**, driven end to end — create
+  an agent-backed assistant, run it through `ai_assistant_api.runner` against the
+  Echo Agent, read back the metadata. Needed `ai_agents` + `ai_assistant_api` in
+  the harness (`integration.yml` now requires and enables them). Verified live
+  against a temp echo workflow before pushing: bare → clean passthrough, fancy →
+  exact instructions.
+- **The live Kubed Assistant is now extendable** for Dr K's own smoke test: its
+  agent system message conditionally appends `{{ $json.metadata.instructions }}`
+  and confirms when it received custom instructions. Proven: a French-instructed
+  Drupal assistant made it answer *"Bonjour ! Je suis l'assistant du site Kubed et
+  je suis opérationnel."*
+
+**Then (still 07-18) — the spec files got pruned to pure business logic.** Dr K's
+rule: a `.feature` file is only ever about the actual product, never the test
+plumbing or the CI. Applied:
+- **`harness.feature` deleted** — it tested that Behat/Drupal/n8n came up, which
+  is the CI's own `Wait for n8n` + `site:install` steps' job, not a product
+  feature. Its two orphaned step defs went with it.
+- **`connection-failure.feature` deleted, its scenarios folded into
+  `assistant-chat.feature`** as the "when the round trip breaks" edges — because
+  "the round trip fails" is an edge of the round trip, not a separate product.
+  (Kept as one general error concern for now; may dissolve further as real edges
+  surface.)
+- **`features/README.md` deleted** — it duplicated CONTRIBUTING's "spec comes
+  first" flow and Behat conventions; only its fixture inventory was unique, and
+  that moved to CONTRIBUTING's Testing section. AGENTS.md links repointed.
+- Feature files now: admin-connection, model-discovery, agent-exclusion,
+  assistant-chat, session-memory, drupal-signature. Every one is product
+  behaviour.
+
+**Then (still 07-18) — the missing knob, and the milestone.** Dr K went to set
+the site tag in the UI and found no field: it had config, schema, the discovery
+filter, and drush plumbing, but the settings form was never given the field.
+Fixed — a **Site tag** textfield on the form and an `n8n:set-tag` command to
+match `set-url`/`set-key`. A good reminder that "the filter works" and "a human
+can reach it" are two different done. Then Dr K called the milestone: the
+fundamental base is built and proven — the POC, the pipeline, the versioning,
+the live suite — a whole lot with a little, and a solid finish on this leg. This
+README/saga pass is that wrap.
+
+**Immediate next steps:** none forced — the base is solid and green. When the
+road resumes, it's §4: error mapping and discovery caching are the nearest
+polish; the horizon (webform, tools via MCP, the rest) waits on Dr K.
+
+---
+
 ## Where we start — 2026-07-15
 
 Carried in from Chapter 1, per its closing inventory:
@@ -1015,6 +1152,65 @@ written** — the best possible outcome for a stop.
 
 ## 7. Session log
 
+- **2026-07-17, later — the first stop gets its pavement.** Perspective check
+  from Dr K first: **we are still at the first stop.** The drive is long; what
+  this stop is for is formulating the plan — building the mental model of the
+  whole trip while laying real pavement under the piece we're parked on. Laid
+  this session, all on PR #12:
+  - **The Drupal signature is now always-on** — the module's distinctive value
+    add, named by Dr K: every Drupal-originated message carries
+    `metadata.{source: drupal, site, assistant, instructions}`. The
+    conversation stays clean — one message, nothing else — while the signature
+    makes Drupal traffic identifiable and hands a generic n8n agent per-
+    assistant context. **The assistant form's fields become optional context an
+    agent MAY read, never orders** — which is what makes an assistant an
+    *overrideable implementation* of a model's chat trigger, and many:1 a
+    first-class pattern. `prompt-ownership.feature` merged into the new
+    `drupal-signature.feature`: "the prompt never reaches the conversation"
+    and "the prompt travels as metadata" are one contract, not two features.
+  - **The integration suite went from harness-only to real.** Fixture pack
+    preloaded through n8n's own API (control case): Echo, Canned (untagged),
+    Rename Me, Webhook Only, Inactive, Private, **Two Doors**, **Shop Bot**
+    (shopsite). Steps wired for admin-connection (Key-module Givens included),
+    model-discovery (the whole tag story), agent-exclusion's provider
+    surfaces, and the signature — file-level `@todo` dropped from all four;
+    only the scenarios needing a rendered page, a second LLM provider, or an
+    assistant entity remain tagged.
+  - **The @domain scenario is wired, not parked.** Probed first on the live
+    pod: `DomainNegotiationContext::setDomain()` activates config overrides
+    in-process — the answer to "CLI never negotiates a domain." CI installs
+    `drupal/domain ^3.0`, creates a default + `shop` domain, writes the tag
+    override into the `domain.shop` collection via
+    `domain.config_factory_override`, and asserts Shop Bot appears while Echo
+    Agent does not. Multisite edge cases now grow up inside the suite instead
+    of arriving later as surprises.
+  - Also learned by breaking it: the live site's API key **refuses writes**
+    — preload validation 403'd on the real cluster, which is Ch1's read-only
+    key doing its job. CI's minted owner key writes fine; the script now says
+    so when handed a read-only key, and aborts loudly on the first failed
+    create instead of cascading 404s.
+- **2026-07-17 — the tag becomes the map, and auto-gen is cut.** Dr K settled
+  two things the POC had left fuzzy. **(1) No auto-generated assistants.**
+  Turning a model into an assistant is a design choice — one model can back
+  several assistants with different roles and metadata (many:1 is a *choice*,
+  not a rule) — so the module must not automate it. Confirmed in code: nothing
+  ever touched `ai_assistant` entities, so there was no 1:1 to enforce and
+  nothing to remove but the unbuilt `assistant-sync.feature` and its README
+  prose. **(2) The tag is the discovery filter, one per site.** The `tag`
+  setting existed but was **dead config — `listChatWorkflows()` never read
+  it**; now it does. Verified live that the n8n public API filters
+  `/workflows?tags=<name>` (media→8, missing→0, multi=AND), then wired it:
+  empty tag = every qualifying workflow (fresh-install friendly, preserves the
+  POC), set tag = only that tag's workflows. Proven on the cluster: tagged
+  Kubed Assistant `mysite`, `tag=mysite`→shows, `tag=otherteam`→empty,
+  `tag=""`→all. **Multisite falls out for free:** because the client reads the
+  tag through `configFactory`, a Domain override of `n8n.settings:tag` scopes
+  each subsite to its own agents (Ch1 §9.1's mechanism paying out), default
+  site unchanged whether Domain is installed or not — the live-domain test is
+  `@todo @domain` pending the integration harness. The mental model is now
+  clean end to end: **n8n chat trigger = Drupal model; the site tag = which
+  agents this site (or domain) sees; the assistant = a human's choice of which
+  model to expose, as many faces as they want via metadata.**
 - **2026-07-16, homework round — Dr K's questions, answered by doing.**
   - **The defaults page** (`/admin/config/ai/settings`) inventoried live: ~17
     operation types; **n8n appears on exactly one row — plain Chat** — absent

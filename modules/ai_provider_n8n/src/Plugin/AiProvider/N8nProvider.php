@@ -65,11 +65,19 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   protected $client;
 
   /**
+   * The entity type manager, for reading an assistant's clean instructions.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $instance->client = $container->get('n8n.client');
+    $instance->entityTypeManager = $container->get('entity_type.manager');
     return $instance;
   }
 
@@ -153,21 +161,96 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   /**
    * {@inheritdoc}
    *
-   * Only the newest user message travels: the workflow's memory node already
-   * holds the history, keyed by the session id, and replaying Drupal's copy
-   * would make the agent see every message twice. The system prompt Drupal
-   * builds is deliberately dropped — the n8n agent has its own.
+   * Only the newest user message travels as the conversation: the workflow's
+   * memory node already holds the history, keyed by the session id, and
+   * replaying Drupal's copy would make the agent see every message twice.
+   *
+   * Everything else Drupal knows rides in METADATA — the Drupal signature.
+   * The conversation stays clean, but every request that originates here is
+   * identifiable and context-rich: a workflow can branch on
+   * {{ $json.metadata.source }}, adapt to {{ $json.metadata.instructions }},
+   * or ignore all of it and behave exactly as it does in n8n's own chat. The
+   * assistant form's fields are optional context an agent MAY use, never
+   * instructions Drupal enforces.
    */
   public function chat(array|string|ChatInput $input, string $model_id, array $tags = []): ChatOutput {
     $text = $this->client->chatSend(
       $model_id,
       $this->sessionIdFromTags($tags),
       $this->lastUserMessage($input),
-      ['source' => 'drupal'],
+      $this->drupalSignature($tags),
     );
 
     $message = new ChatMessage('assistant', $text);
     return new ChatOutput($message, $text, []);
+  }
+
+  /**
+   * The metadata every Drupal-originated chat message carries.
+   *
+   * @return array
+   *   source: always "drupal" — how a workflow tells Drupal traffic from n8n's
+   *     own chat UI. site: the site name. assistant: the machine id of the
+   *     assistant's companion agent, so one workflow serving several assistants
+   *     can tell its callers apart. instructions: the assistant's own
+   *     instructions, CLEAN — never present when the assistant has none, so a
+   *     zero-detail assistant is a pure passthrough. Offered as a variable the
+   *     workflow may use, never injected into the conversation.
+   */
+  protected function drupalSignature(array $tags): array {
+    $signature = [
+      'source' => 'drupal',
+      'site' => (string) $this->configFactory->get('system.site')->get('name'),
+    ];
+    if ($agent_id = $this->assistantIdFromTags($tags)) {
+      $signature['assistant'] = $agent_id;
+      if ($instructions = $this->assistantInstructions($agent_id)) {
+        $signature['instructions'] = $instructions;
+      }
+    }
+
+    return $signature;
+  }
+
+  /**
+   * The assistant's own instructions, clean of the agent loop's runtime framing.
+   *
+   * The system prompt the provider is handed at chat() time is the agent loop's
+   * runtime prompt — the admin's instructions plus per-turn framing like "this
+   * is the first time this agent has been run", which changes every turn and is
+   * not the admin's intent. The agent entity's stored system_prompt is the
+   * clean instructions the form saved, and that is what belongs in metadata.
+   * Empty means the admin gave none: the instructions key is then absent.
+   */
+  protected function assistantInstructions(string $agent_id): string {
+    if (!$this->entityTypeManager->hasDefinition('ai_agent')) {
+      return '';
+    }
+    $agent = $this->entityTypeManager->getStorage('ai_agent')->load($agent_id);
+    return $agent ? trim((string) $agent->get('system_prompt')) : '';
+  }
+
+  /**
+   * The assistant's companion-agent id, read from the agent runner's tags.
+   *
+   * The runner tags every call `ai_agents_<id>` alongside the prompt, runner
+   * and thread variants of the same prefix — the bare one is the identity.
+   */
+  protected function assistantIdFromTags(array $tags): string {
+    foreach ($tags as $tag) {
+      if (!str_starts_with($tag, 'ai_agents_') || $tag === 'ai_agents') {
+        continue;
+      }
+      $candidate = substr($tag, strlen('ai_agents_'));
+      foreach (['prompt_', 'runner_', 'thread_', 'caller_runner_'] as $variant) {
+        if (str_starts_with($candidate, $variant)) {
+          continue 2;
+        }
+      }
+      return $candidate;
+    }
+
+    return '';
   }
 
   /**

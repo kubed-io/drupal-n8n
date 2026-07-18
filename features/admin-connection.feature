@@ -9,7 +9,6 @@
 # Obtaining an n8n API key is out of scope — that's the n8n admin's job. In the tests
 # it is minted against the ephemeral n8n and provided as setup.
 
-@todo
 Feature: Admin connects Drupal to n8n
   As a Drupal admin
   I want to point Drupal at my n8n and verify the connection
@@ -37,7 +36,9 @@ Feature: Admin connects Drupal to n8n
       | an unreachable host  |
 
   # Security boundary: the key belongs to the Key module and must never come back
-  # out through our form. See SECURITY.md.
+  # out through our form. See SECURITY.md. Needs a rendered page, which the
+  # harness cannot serve yet — hence the tag.
+  @todo
   Scenario: The API key is never echoed back to the browser
     Given the connection to n8n is configured and verified
     When the admin views the n8n settings form

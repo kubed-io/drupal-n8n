@@ -353,6 +353,51 @@ class N8nClientTest extends UnitTestCase {
   }
 
   /**
+   * The site tag scopes discovery to n8n, not in PHP: the query carries it.
+   *
+   * @covers ::listChatWorkflows
+   */
+  public function testTheSiteTagIsPassedAsTheWorkflowFilter(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        [
+          'id' => 'wf1',
+          'name' => 'Echo Agent',
+          'nodes' => [$this->chatTrigger('hook-1')],
+        ],
+      ]),
+    ], ['tag' => 'mysite']);
+
+    $client->listChatWorkflows();
+
+    parse_str($this->history[0]['request']->getUri()->getQuery(), $query);
+    $this->assertSame('mysite', $query['tags']);
+  }
+
+  /**
+   * An empty site tag is no filter at all — every qualifying workflow is offered.
+   *
+   * @covers ::listChatWorkflows
+   */
+  public function testAnEmptySiteTagDoesNotFilter(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        [
+          'id' => 'wf1',
+          'name' => 'Echo Agent',
+          'nodes' => [$this->chatTrigger('hook-1')],
+        ],
+      ]),
+    ], ['tag' => '']);
+
+    $models = $client->listChatWorkflows();
+
+    $this->assertArrayHasKey('wf1', $models);
+    parse_str($this->history[0]['request']->getUri()->getQuery(), $query);
+    $this->assertArrayNotHasKey('tags', $query);
+  }
+
+  /**
    * The Chat Hub agent name, when set, wins over the workflow name.
    *
    * @covers ::listChatWorkflows
