@@ -139,7 +139,13 @@ class N8nAssistantRunner extends AiAssistantApiRunner {
    * bounded the same way the base runner bounds a Drupal-stored transcript: the
    * last history_context_length pairs plus the newest message.
    *
-   * @return list<array{role: string, message: string}>
+   * Each turn is stamped with the current time. The chat box only paints a
+   * message that has a timestamp newer than a day (DeepChatFormBlock and
+   * ChatFormBlock both drop any message without one), and n8n's transcript
+   * carries no per-message time we can trust — so we stamp on load. The value
+   * is display-only; the provider ignores it.
+   *
+   * @return list<array{role: string, message: string, timestamp: int}>
    *   The prior turns, oldest first.
    */
   protected function loadHistoryFromN8n(): array {
@@ -155,10 +161,18 @@ class N8nAssistantRunner extends AiAssistantApiRunner {
       return [];
     }
 
-    if ($history) {
-      $keep = (int) $this->assistant->get('history_context_length') * 2 + 1;
-      $history = array_slice($history, -$keep, $keep);
+    if (!$history) {
+      return [];
     }
+
+    $keep = (int) $this->assistant->get('history_context_length') * 2 + 1;
+    $history = array_slice($history, -$keep, $keep);
+
+    $now = time();
+    foreach ($history as &$turn) {
+      $turn['timestamp'] = $now;
+    }
+    unset($turn);
 
     return $history;
   }

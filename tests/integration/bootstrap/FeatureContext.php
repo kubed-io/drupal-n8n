@@ -799,6 +799,32 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: Every loaded turn is display-ready.
+   *
+   * The chat box drops any message without a timestamp newer than a day, so a
+   * turn that reaches the runner but carries no timestamp is painted nowhere —
+   * the transcript silently vanishes on reload. This guards that gate.
+   *
+   * @Then every loaded turn can be shown in the chat box
+   */
+  public function everyLoadedTurnCanBeShown(): void {
+    Assert::assertNotEmpty($this->loadedHistory, 'Nothing was loaded to show.');
+    $day_ago = strtotime('-1 day');
+    foreach ($this->loadedHistory as $turn) {
+      Assert::assertArrayHasKey(
+        'timestamp',
+        $turn,
+        'A loaded turn without a timestamp is dropped by the chat box: ' . json_encode($turn),
+      );
+      Assert::assertGreaterThan(
+        $day_ago,
+        $turn['timestamp'],
+        'A loaded turn older than a day is hidden by the chat box: ' . json_encode($turn),
+      );
+    }
+  }
+
+  /**
    * Creates an n8n-memory-mode assistant pointed at a fixture workflow.
    */
   protected function createAssistantRememberingFromN8n(string $id, string $agent, int $length): void {

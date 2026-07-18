@@ -89,6 +89,7 @@ Feature: Conversations are threaded, and Drupal's session settings ride along
     When the assistant's stored conversation is loaded
     Then the conversation came back from n8n including "turn three question"
     And the conversation came back from n8n including "turn three answer"
+    And every loaded turn can be shown in the chat box
 
   # Sizing still applies: History context length trims how many past turns return,
   # exactly as it bounds a Drupal-stored transcript — here length 1 keeps 3 messages.
