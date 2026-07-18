@@ -554,7 +554,7 @@ class N8nClientTest extends UnitTestCase {
   }
 
   /**
-   * loadPreviousSession posts the load contract to the trigger's chat URL.
+   * Loading a session posts the load contract to the trigger's chat URL.
    *
    * @covers ::loadPreviousSession
    */
@@ -588,11 +588,25 @@ class N8nClientTest extends UnitTestCase {
    * @covers ::roleOfLangchainMessage
    */
   public function testLoadPreviousSessionMapsLangchainMessages(): void {
-    $data = json_encode(['data' => [
-      ['type' => 'constructor', 'id' => ['langchain_core', 'messages', 'HumanMessage'], 'kwargs' => ['content' => 'hi']],
-      ['type' => 'constructor', 'id' => ['langchain_core', 'messages', 'AIMessage'], 'kwargs' => ['content' => 'hello']],
-      ['type' => 'constructor', 'id' => ['langchain_core', 'messages', 'SystemMessage'], 'kwargs' => ['content' => 'be nice']],
-    ]]);
+    $data = json_encode([
+      'data' => [
+        [
+          'type' => 'constructor',
+          'id' => ['langchain_core', 'messages', 'HumanMessage'],
+          'kwargs' => ['content' => 'hi'],
+        ],
+        [
+          'type' => 'constructor',
+          'id' => ['langchain_core', 'messages', 'AIMessage'],
+          'kwargs' => ['content' => 'hello'],
+        ],
+        [
+          'type' => 'constructor',
+          'id' => ['langchain_core', 'messages', 'SystemMessage'],
+          'kwargs' => ['content' => 'be nice'],
+        ],
+      ],
+    ]);
     $client = $this->buildClient([
       $this->workflowListing([
         ['id' => 'wf1', 'name' => 'History Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
@@ -616,10 +630,12 @@ class N8nClientTest extends UnitTestCase {
    * @covers ::roleOfLangchainMessage
    */
   public function testLoadPreviousSessionUnderstandsTheSimpleTypeEncoding(): void {
-    $data = json_encode(['data' => [
-      ['type' => 'human', 'content' => 'ping'],
-      ['type' => 'ai', 'content' => 'pong'],
-    ]]);
+    $data = json_encode([
+      'data' => [
+        ['type' => 'human', 'content' => 'ping'],
+        ['type' => 'ai', 'content' => 'pong'],
+      ],
+    ]);
     $client = $this->buildClient([
       $this->workflowListing([
         ['id' => 'wf1', 'name' => 'History Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
