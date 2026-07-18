@@ -63,6 +63,42 @@ class FeatureContext implements Context {
    */
   protected static bool $prerequisitesChecked = FALSE;
 
+  /**
+   * Assistant ids created this scenario, deleted in teardown for isolation.
+   *
+   * @var list<string>
+   */
+  protected array $createdAssistants = [];
+
+  /**
+   * Deletes the assistants a scenario created, and their companion agents.
+   *
+   * Without this an assistant's llm_model — which is an n8n workflow id — would
+   * leak into the next scenario's config and, for instance, break the "no
+   * workflow id appears in configuration" check. Mirrors the sibling
+   * nextcloud-n8n's @AfterScenario teardown. Best-effort.
+   *
+   * @AfterScenario
+   */
+  public function tearDownAssistants(): void {
+    if (!$this->createdAssistants) {
+      return;
+    }
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $ids = json_decode('IDS', TRUE);
+      $etm = \Drupal::entityTypeManager();
+      foreach ($ids as $id) {
+        foreach (['ai_assistant', 'ai_agent'] as $type) {
+          if ($entity = $etm->getStorage($type)->load($id)) {
+            $entity->delete();
+          }
+        }
+      }
+      echo json_encode(TRUE);
+      PHP, ['IDS' => json_encode($this->createdAssistants)]));
+    $this->createdAssistants = [];
+  }
+
   // ── Prerequisites (a lifecycle hook, not a feature) ──────────────────────────
 
   /**
@@ -642,6 +678,7 @@ class FeatureContext implements Context {
     $workflow = $this->n8nWorkflowByName($agent);
     Assert::assertNotNull($workflow, "No fixture named '$agent'.");
     $this->createN8nAssistant($id, $workflow['id'], $instructions);
+    $this->createdAssistants[] = $id;
   }
 
   // ── Support ────────────────────────────────────────────────────────────────
