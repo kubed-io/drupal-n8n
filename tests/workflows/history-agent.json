@@ -1,0 +1,55 @@
+{
+  "name": "History Agent",
+  "nodes": [
+    {
+      "id": "hist1111-0000-4000-8000-000000000001",
+      "name": "When chat message received",
+      "webhookId": "hist1111-0000-4000-8000-000000000001",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "authentication": "none",
+        "options": {
+          "responseMode": "lastNode",
+          "loadPreviousSession": "manually"
+        }
+      }
+    },
+    {
+      "id": "code-history",
+      "name": "Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const req = $input.first().json;\nif (req.action === 'loadPreviousSession') {\n  const H = (c) => ({ type: 'constructor', id: ['langchain_core', 'messages', 'HumanMessage'], kwargs: { content: c } });\n  const A = (c) => ({ type: 'constructor', id: ['langchain_core', 'messages', 'AIMessage'], kwargs: { content: c } });\n  return [{ json: { data: [\n    H('turn one question'), A('turn one answer'),\n    H('turn two question'), A('turn two answer'),\n    H('turn three question'), A('turn three answer'),\n  ] } }];\n}\nreturn [{ json: { output: JSON.stringify(req) } }];"
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -133,7 +133,7 @@ The setup is short:
 1. **Configuration → AI → AI Assistants → Add assistant.**
 2. Set **AI Provider** to `n8n`.
 3. Pick your agent as the **Model** — the list is your tagged chat triggers.
-4. Set **Allow history** to *one thread per session*, choose the **roles** who may chat, and write the greeting and error messages.
+4. Choose an **Allow history** mode — who owns the transcript, Drupal or n8n (see [Where the conversation is remembered](#where-the-conversation-is-remembered)) — then pick the **roles** who may chat and write the greeting and error messages.
 5. Place the **AI Chatbot** block (Block layout) and point it at this assistant.
 
 A visitor's message now goes to your agent's Chat Trigger and the answer comes back in the chat box. Everything the agent does in between — which model it calls, which tools it fires, what it remembers — is invisible to Drupal, deliberately.
@@ -148,15 +148,31 @@ Each Drupal conversation maps to one n8n **session**. The module takes the assis
 
 Wire your workflow like the n8n docs recommend: connect **one memory node to both the Agent and the Chat Trigger**. The Agent connection is what threads the conversation; the Chat Trigger connection is only for n8n's own chat UI, which Drupal doesn't use.
 
-Three things worth understanding:
+Two things always hold:
 
-- **The memory lives in n8n, not Drupal.** Drupal stores no transcript. Clearing Drupal's caches doesn't forget your conversation; clearing the n8n memory does.
 - **The same browser continues the same conversation** across page loads. Different browsers get different sessions; different assistants get different sessions.
-- **Only the newest message is sent.** Drupal never replays history — n8n already has it, and replaying would make the agent count every message twice.
+- **Only the newest message is sent.** Drupal never replays history to the agent — n8n already has it, and replaying would make the agent count every message twice.
 
 And you can size the memory from Drupal: set **History context length** on the assistant and it rides along as `metadata.context_window`, so your memory node's **Context Window Length** can be `={{ $json.metadata.context_window }}`.
 
 📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+
+### Where the conversation is remembered
+
+The agent always remembers through its own memory node — that's the recall it uses to answer. **Allow history** decides one narrower thing: who owns the **transcript the chat box shows** when a visitor reopens it. There are two owners, and it's your call per assistant.
+
+| Allow history | Who owns the shown transcript | Needs an n8n memory node? |
+|---|---|---|
+| **Session** / **Session (same thread on reload)** | **Drupal** — stored in the visitor's session store | No, not for the chat box |
+| **Session (from n8n memory)** | **n8n** — loaded live from the agent's memory | **Yes** — a *retrieving* memory on the Agent |
+
+**Drupal owns it (the two Session modes).** Drupal keeps its own copy of every question and answer in the visitor's session and paints the box from that. This is self-contained: the box repaints correctly even if the workflow has no memory node at all. A memory node wired only to the **Chat Trigger** for n8n's own chat UI is simply **ignored** by Drupal and isn't needed — Drupal drives the webhook directly and never asks n8n to reload a session. (Put a memory node on the **Agent** if you want the agent to *recall* across turns — that's the agent's brain, a separate concern from what the box displays.)
+
+**n8n owns it (Session from n8n memory).** Drupal stores no transcript of its own. When the box opens it asks the workflow to hand back the conversation for this `sessionId`, and paints the box from n8n's answer — so Drupal and n8n show **one** transcript instead of two kept loosely in sync. The catch is a hard requirement: it only works against a **retrieving memory** wired to the Agent — Postgres Chat Memory, or a memory that answers n8n's *Load Previous Session* request. With **Simple Memory** or **no memory node**, n8n returns nothing and the box opens empty. Choose this when a retrieving memory is the single source of truth and you don't want Drupal keeping a parallel copy.
+
+> **Rule of thumb.** Want it to *just work* with any workflow? Use **Session**. Have a Postgres (or otherwise retrieving) memory and want n8n to be the one transcript? Use **Session (from n8n memory)** and make sure that memory is on the Agent.
+
+📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/N8nAssistantRunner.php`](modules/ai_provider_n8n/src/N8nAssistantRunner.php)
 
 ### Every message carries the Drupal signature
 

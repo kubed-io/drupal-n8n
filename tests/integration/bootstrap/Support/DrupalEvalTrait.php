@@ -89,7 +89,7 @@ trait DrupalEvalTrait {
    * llm_configuration or specific_error_messages becomes unloadable AND
    * undeletable through the entity API. See saga Chapter 2 §1.1c.
    */
-  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2): void {
+  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread'): void {
     $this->drupalEvalJson(strtr(<<<'PHP'
       $etm = \Drupal::entityTypeManager();
       foreach (['ai_assistant', 'ai_agent'] as $type) {
@@ -105,7 +105,7 @@ trait DrupalEvalTrait {
       $etm->getStorage('ai_assistant')->create([
         'id' => ID, 'label' => ID, 'description' => 'behat', 'ai_agent' => ID,
         'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => [],
-        'instructions' => INSTRUCTIONS, 'allow_history' => 'session_one_thread',
+        'instructions' => INSTRUCTIONS, 'allow_history' => ALLOW_HISTORY,
         'history_context_length' => HISTORY, 'assistant_message' => 'hi',
         'no_results_message' => 'no results', 'error_message' => 'error: [error_message]',
         'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => [],
@@ -118,6 +118,7 @@ trait DrupalEvalTrait {
         'WORKFLOW' => var_export($workflow_id, TRUE),
         'INSTRUCTIONS' => var_export($instructions, TRUE),
         'HISTORY' => var_export((string) $history_length, TRUE),
+        'ALLOW_HISTORY' => var_export($allow_history, TRUE),
       ]));
   }
 
@@ -164,6 +165,25 @@ trait DrupalEvalTrait {
         'ID' => var_export($id, TRUE),
         'MSG' => var_export($message, TRUE),
       ]));
+  }
+
+  /**
+   * Loads an assistant's shown transcript through the decorated runner.
+   *
+   * Goes through `ai_assistant_api.runner` — the service the n8n provider swaps
+   * for N8nAssistantRunner — so an n8n-memory-mode assistant returns what the
+   * workflow hands back, not Drupal's store. This is the exact call the chat box
+   * makes when it paints prior turns on open.
+   *
+   * @return list<array{role: string, message: string}>
+   *   The transcript the runner would show, oldest first.
+   */
+  protected function loadAssistantHistory(string $id): array {
+    return (array) $this->drupalEvalJson(strtr(<<<'PHP'
+      $runner = \Drupal::service('ai_assistant_api.runner');
+      $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
+      echo json_encode(array_values($runner->getMessageHistory()));
+      PHP, ['ID' => var_export($id, TRUE)]));
   }
 
 }

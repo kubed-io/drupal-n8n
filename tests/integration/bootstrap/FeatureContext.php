@@ -54,6 +54,13 @@ class FeatureContext implements Context {
   protected array $echo = [];
 
   /**
+   * The transcript the runner loaded on the last "conversation is loaded" step.
+   *
+   * @var list<array{role: string, message: string}>
+   */
+  protected array $loadedHistory = [];
+
+  /**
    * The Key entity holding the valid minted API key.
    */
   protected const VALID_KEY = 'behat_n8n_key';
@@ -730,6 +737,74 @@ class FeatureContext implements Context {
     $workflow = $this->n8nWorkflowByName($agent);
     Assert::assertNotNull($workflow, "No fixture named '$agent'.");
     $this->createN8nAssistant($id, $workflow['id'], $instructions);
+    $this->createdAssistants[] = $id;
+  }
+
+  // ── Session from n8n memory ──────────────────────────────────────────────────
+
+  /**
+   * Step: An assistant that loads its shown transcript from n8n's memory.
+   *
+   * @Given an assistant :id backed by the :agent agent remembering from n8n
+   */
+  public function anAssistantRememberingFromN8n(string $id, string $agent): void {
+    $this->createAssistantRememberingFromN8n($id, $agent, 2);
+  }
+
+  /**
+   * Step: The same, with an explicit history context length.
+   *
+   * @Given an assistant :id backed by the :agent agent remembering from n8n with history context length :length
+   */
+  public function anAssistantRememberingFromN8nWithLength(string $id, string $agent, int $length): void {
+    $this->createAssistantRememberingFromN8n($id, $agent, $length);
+  }
+
+  /**
+   * Step: The chat box asks the runner for the transcript it would paint.
+   *
+   * @When the assistant's stored conversation is loaded
+   */
+  public function theStoredConversationIsLoaded(): void {
+    Assert::assertNotEmpty($this->createdAssistants, 'No assistant was created to load.');
+    $id = end($this->createdAssistants);
+    $this->loadedHistory = $this->loadAssistantHistory($id);
+  }
+
+  /**
+   * Step: The loaded transcript contains a message.
+   *
+   * @Then the conversation came back from n8n including :text
+   */
+  public function theConversationCameBackIncluding(string $text): void {
+    $messages = array_column($this->loadedHistory, 'message');
+    Assert::assertContains(
+      $text,
+      $messages,
+      "n8n's transcript should include '$text'. Got: " . json_encode($this->loadedHistory),
+    );
+  }
+
+  /**
+   * Step: The loaded transcript is a given length.
+   *
+   * @Then the loaded conversation has :count messages
+   */
+  public function theLoadedConversationHasMessages(int $count): void {
+    Assert::assertCount(
+      $count,
+      $this->loadedHistory,
+      'History context length should bound what n8n hands back: ' . json_encode($this->loadedHistory),
+    );
+  }
+
+  /**
+   * Creates an n8n-memory-mode assistant pointed at a fixture workflow.
+   */
+  protected function createAssistantRememberingFromN8n(string $id, string $agent, int $length): void {
+    $workflow = $this->n8nWorkflowByName($agent);
+    Assert::assertNotNull($workflow, "No fixture named '$agent'.");
+    $this->createN8nAssistant($id, $workflow['id'], '', $length, 'session_from_n8n');
     $this->createdAssistants[] = $id;
   }
 

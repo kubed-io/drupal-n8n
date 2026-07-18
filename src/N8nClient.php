@@ -212,6 +212,71 @@ class N8nClient implements N8nClientInterface {
   }
 
   /**
+   * {@inheritdoc}
+   *
+   * The chat webhook answers loadPreviousSession with `{data: [...]}`, where each
+   * entry is a serialised LangChain message — the exact shape a Postgres Chat
+   * Memory node returns, and the exact shape `@n8n/chat` consumes. A workflow
+   * with no retrieving memory answers with an empty (or absent) data array, so
+   * an empty transcript is a normal answer, not an error.
+   */
+  public function loadPreviousSession(string $workflow_id, string $session_id): array {
+    $models = $this->listChatWorkflows();
+    if (!isset($models[$workflow_id])) {
+      throw new \RuntimeException(sprintf('Workflow %s is not an available chat model — it may be inactive or its chat trigger not public.', $workflow_id));
+    }
+
+    $response = $this->httpClient->request('POST', $this->getBaseUrl() . '/webhook/' . $models[$workflow_id]['webhook_id'] . '/chat', [
+      'json' => [
+        'action' => 'loadPreviousSession',
+        'sessionId' => $session_id,
+      ],
+      'timeout' => max((int) ($this->getConfig()->get('timeout') ?: self::DEFAULT_TIMEOUT), 60),
+      'allow_redirects' => FALSE,
+    ]);
+
+    $decoded = json_decode((string) $response->getBody(), TRUE);
+    $messages = is_array($decoded) ? ($decoded['data'] ?? []) : [];
+
+    $history = [];
+    foreach (is_array($messages) ? $messages : [] as $message) {
+      if (!is_array($message)) {
+        continue;
+      }
+      $history[] = [
+        'role' => $this->roleOfLangchainMessage($message),
+        'message' => (string) ($message['kwargs']['content'] ?? $message['content'] ?? ''),
+      ];
+    }
+
+    return $history;
+  }
+
+  /**
+   * Normalises a serialised LangChain message to a Drupal chat role.
+   *
+   * A serialised message identifies its kind either by the last segment of its
+   * `id` path (HumanMessage / AIMessage / SystemMessage — the Postgres memory
+   * shape) or, in simpler encodings, by a `type` of human / ai / system. Anything
+   * unrecognised is treated as a user turn, the safe default for display.
+   */
+  protected function roleOfLangchainMessage(array $message): string {
+    $kind = '';
+    if (isset($message['id']) && is_array($message['id'])) {
+      $kind = (string) end($message['id']);
+    }
+    if ($kind === '' && isset($message['type']) && is_string($message['type'])) {
+      $kind = $message['type'];
+    }
+
+    return match (strtolower($kind)) {
+      'aimessage', 'ai', 'assistant' => 'assistant',
+      'systemmessage', 'system' => 'system',
+      default => 'user',
+    };
+  }
+
+  /**
    * Turns a transport exception into something an admin can act on.
    *
    * The status code is safe to log; the request headers carry the key and are

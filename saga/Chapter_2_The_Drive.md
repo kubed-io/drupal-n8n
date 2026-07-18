@@ -224,10 +224,50 @@ mode cleanly; until then this is a documented opportunity, not a Stop. The value
 it would make Drupal and n8n share ONE transcript instead of keeping two loosely
 in sync.
 
+**2026-07-18, the seed sprouts — "Session (from n8n memory)" is built.** PR #13
+merged clean, so on a fresh branch we took the seed off the shelf. The "parked,
+needs an upstream extension point" verdict turned out **too pessimistic**: read
+against the live pod, `allow_history` is a free-string on the config entity (a
+new value validates), the form options are a plain array we can append to, and —
+the real find — **`ai_assistant_api.runner` is a *service*, and every consumer
+fetches it by id and type-hints the concrete class.** So we extend it. A
+`N8nAssistantRunner` subclass overrides exactly two public methods —
+`getMessageHistory()` (source the shown transcript from n8n) and `getThreadsKey()`
+(give the mode a stable per-assistant session id) — and a service provider swaps
+the runner's class **in place** (copying the parent's args, prepending
+`n8n.client`), but only when `ai_assistant_api.runner` exists, so a site without
+it is untouched. No upstream patch. The build, spec-first:
+- **README → features → code → tests.** README grew a *"Where the conversation
+  is remembered"* section: two owners of the *shown* transcript — Drupal's
+  session store (the two Session modes; a trigger-only memory node is ignored and
+  not needed) or n8n's memory (the new mode; **requires a retrieving memory on the
+  Agent**, empty against Simple Memory). The feature file's old "Load Previous
+  Session is not our concern" header was **retired** — it is our concern now, but
+  only on opt-in.
+- **Display-only, by construction.** `getMessageHistory()` feeds both the chat
+  box *and* the LLM assembly — but `N8nProvider::chat()` still forwards only the
+  newest user message, so the loaded turns reach the box and never the agent. No
+  double-count; recall stays n8n's, display becomes shared. That is why the mode
+  needed zero provider changes.
+- **The client learned one verb.** `N8nClient::loadPreviousSession()` posts the
+  `loadPreviousSession` action to the chat webhook (no admin key, 60s floor, like
+  `chatSend`) and maps `{data:[…]}` — real serialised LangChain messages, the
+  Postgres-memory shape — to Drupal roles, tolerant of both the `id`-path and the
+  simple `type` encodings. Five unit tests pin the contract and the mapping.
+- **A control-case fixture.** `History Agent` answers `loadPreviousSession`
+  *Manually* with a six-message transcript (a stand-in for Postgres), so the live
+  suite proves the round trip and that History context length trims it (length 1
+  → 3 messages; default 2 → the last 5).
+
+The honest caveats, on the record: the decorator extends a 13-arg concrete ctor
+(forwarded via `...$args` to blunt the fragility, but still coupled to upstream);
+the mode only pays off against a retrieving memory; and the option shows for every
+provider (inert on non-n8n — the runner ignores it — documented rather than
+AJAX-gated). One transcript instead of two, for the price of a subclass.
+
 **Immediate next steps:** none forced — the base is solid and green. When the
 road resumes, it's §4: error mapping and discovery caching are the nearest
-polish; the horizon (webform, tools via MCP, the **"session from n8n" history
-mode**, the rest) waits on Dr K.
+polish; the horizon (webform, tools via MCP, the rest) waits on Dr K.
 
 ---
 

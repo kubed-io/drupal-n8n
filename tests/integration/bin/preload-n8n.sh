@@ -88,6 +88,7 @@ echo "== preloading n8n with fixture workflows =="
 #        file                  tag        activate
 preload  echo-agent.json       mysite     yes
 preload  canned-agent.json     ''         yes
+preload  history-agent.json    mysite     yes
 preload  rename-me.json        mysite     yes
 preload  webhook-only.json     mysite     yes
 preload  inactive-agent.json   mysite     no
