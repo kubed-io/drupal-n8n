@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-18
+
 ### Added
 
 - Chat with an n8n agent through Drupal's chat block: `chat()` posts the newest message to the workflow's chat webhook with a stable session id, so the agent's own memory threads the conversation.
