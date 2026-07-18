@@ -32,7 +32,7 @@ link before you act on it.
 | What ships | `n8n` (connection) + `ai_provider_n8n` (the headline). | [README § modules in this repo](README.md#modules-in-this-repo) |
 | What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction, not a tool bridge — MCP owns tools in both directions. | [README § not this module](README.md#not-this-module) |
 | Where the work stands | The **core loop is proven live** — connection, discovery, chat, session bridge. Left: hardening, tests, tag-sync. | [saga Ch2](saga/Chapter_2_The_Drive.md) |
-| How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [features/README § how a feature becomes a feature](features/README.md#how-a-feature-becomes-a-feature) |
+| How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [CONTRIBUTING § the spec comes first](CONTRIBUTING.md#the-spec-comes-first--and-the-readme-comes-before-the-spec) |
 
 ---
 
@@ -113,7 +113,7 @@ Each cost someone a session. One line each; follow the link before you act on it
 - **Behat: a literal `(` or `)` in step text** becomes a regex group → the step goes
   undefined and **the suite fails while looking green**.
 - **Fixtures are LLM-free** and must stay so.
-  → [features/README § fixtures](features/README.md#fixtures--the-tests-own-their-workflows)
+  → [CONTRIBUTING § fixtures are LLM-free](CONTRIBUTING.md#fixtures-are-llm-free-and-must-stay-that-way)
 
 **n8n** → [saga §7.1](saga/Chapter_1_Packing_the_Van.md)
 

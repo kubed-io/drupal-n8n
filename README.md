@@ -185,7 +185,7 @@ If n8n is unreachable, the key is wrong, or a workflow isn't active, the chat bo
 
 An **inactive workflow** is the most common one: n8n only serves a production chat webhook while the workflow is active.
 
-📋 spec: [`features/connection-failure.feature`](features/connection-failure.feature)
+📋 spec: [`features/assistant-chat.feature`](features/assistant-chat.feature) — the failure edges of the round trip
 
 ### Drupal answers back
 

@@ -71,10 +71,26 @@ Not our bug. If a required check fails only in "Publish test results", check
 `curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/kubed-io/drupal-n8n`
 before touching code.
 
-**Immediate next steps:** push the phpcs+preload fix → watch CI → expect
-first-contact failures in the ~10 newly-live integration scenarios (fixture
-payloads, step regexes, the domain entity shape) → iterate. Then the route
-continues at §4.
+**Then (still 07-18) — the spec files got pruned to pure business logic.** Dr K's
+rule: a `.feature` file is only ever about the actual product, never the test
+plumbing or the CI. Applied:
+- **`harness.feature` deleted** — it tested that Behat/Drupal/n8n came up, which
+  is the CI's own `Wait for n8n` + `site:install` steps' job, not a product
+  feature. Its two orphaned step defs went with it.
+- **`connection-failure.feature` deleted, its scenarios folded into
+  `assistant-chat.feature`** as the "when the round trip breaks" edges — because
+  "the round trip fails" is an edge of the round trip, not a separate product.
+  (Kept as one general error concern for now; may dissolve further as real edges
+  surface.)
+- **`features/README.md` deleted** — it duplicated CONTRIBUTING's "spec comes
+  first" flow and Behat conventions; only its fixture inventory was unique, and
+  that moved to CONTRIBUTING's Testing section. AGENTS.md links repointed.
+- Feature files now: admin-connection, model-discovery, agent-exclusion,
+  assistant-chat, session-memory, drupal-signature. Every one is product
+  behaviour.
+
+**Immediate next steps:** push → watch CI (expect green; only @todo/​harness
+scenarios changed, live ones untouched) → then the route continues at §4.
 
 ---
 
