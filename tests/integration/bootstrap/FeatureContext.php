@@ -18,6 +18,10 @@ use PHPUnit\Framework\Assert;
  * signature. Still tagged for later: everything needing an ai_assistant entity
  * in the loop — those land when the suite grows an assistant fixture.
  *
+ * A `@BeforeScenario` prerequisite hook checks the plumbing (Drupal booted, n8n
+ * up) so the harness sanity that `harness.feature` used to give lives on as a
+ * lifecycle hook rather than a gherkin feature.
+ *
  * Keep the parentheses out of step text: a literal ( or ) becomes a regex group,
  * the step silently goes undefined, and the suite fails while looking green.
  */
@@ -53,7 +57,46 @@ class FeatureContext implements Context {
    */
   protected const VALID_KEY = 'behat_n8n_key';
 
-  // ── Harness ────────────────────────────────────────────────────────────────
+  /**
+   * Whether the once-per-suite prerequisite check has run.
+   */
+  protected static bool $prerequisitesChecked = FALSE;
+
+  // ── Prerequisites (a lifecycle hook, not a feature) ──────────────────────────
+
+  /**
+   * Verifies the plumbing before any scenario runs.
+   *
+   * This is a prerequisite gate, not a product feature — so it is a Behat
+   * lifecycle hook, the sibling nextcloud-n8n's `@AfterScenario` teardown turned
+   * inside out, rather than a `harness.feature`. It exists so a red suite means
+   * "the module is broken", not "Drupal never booted or n8n never came up" —
+   * from the outside those look identical. Runs once; a static guard keeps it
+   * off the per-scenario hot path.
+   *
+   * @BeforeScenario
+   */
+  public function verifyPrerequisites(): void {
+    if (self::$prerequisitesChecked) {
+      return;
+    }
+    self::$prerequisitesChecked = TRUE;
+
+    $bootstrap = $this->drush('status', '--field=bootstrap');
+    Assert::assertSame(0, $this->drushExitCode(), 'Prerequisite: drush could not reach Drupal at all.');
+    Assert::assertStringContainsString(
+      'Successful',
+      $bootstrap,
+      'Prerequisite: Drupal is not bootstrapping. The plumbing is broken, not the module.',
+    );
+
+    Assert::assertTrue(
+      $this->n8nIsHealthy(),
+      sprintf('Prerequisite: the ephemeral n8n never came up at %s.', $this->n8nUrl()),
+    );
+  }
+
+  // ── The module ───────────────────────────────────────────────────────────────
 
   /**
    * Asserts the module under test is enabled on the site.
