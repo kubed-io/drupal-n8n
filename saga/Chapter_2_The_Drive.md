@@ -183,9 +183,51 @@ fundamental base is built and proven — the POC, the pipeline, the versioning,
 the live suite — a whole lot with a little, and a solid finish on this leg. This
 README/saga pass is that wrap.
 
+**2026-07-18, later still — Load Previous Session, run to ground; and a seed Dr K
+planted.** Dr K asked the last session question head-on: what is the chat
+trigger's **Load Previous Session = "Manually"**, and can we wiggle it in?
+Confirmed against the n8n team's own answer (community thread 190390):
+- **"Manually" = the workflow answers the widget's rehydrate call itself.** When
+  n8n's `@n8n/chat` widget opens it fires a distinct `{action:
+  "loadPreviousSession", sessionId}` call — *not* a message. **From Memory**:
+  n8n auto-reads the trigger-wired memory and returns the transcript.
+  **Manually**: n8n hands that action into the workflow and YOU fetch history and
+  return it in an exact shape — raw LangChain messages under a `data` key
+  (`{data:[{id,kwargs:{content},lc,type}]}`); the classic footgun is returning
+  `{previousSession:[…]}` or simplified messages, which render nothing.
+- **Inert on our path, at any setting.** Our provider only ever sends
+  `sendMessage`; it never emits `loadPreviousSession`, so none of the three modes
+  ever fires for Drupal. A workflow can be Off / From Memory / Manually and our
+  `chat()` is untouched. So the honest answer to "does it matter?" is **no, not
+  today** — and memory-on-the-**trigger** does nothing for us either; only
+  memory-on-the-**agent** threads our conversation.
+- **Three transcripts, cleanly separated** (Dr K's own summary, now the canon):
+  (1) Drupal's tempstore transcript = the chatbox's *visual* history, keyed by
+  session cookie; (2) the n8n agent's memory node = the agent's *recall*, keyed
+  by our `sessionId`; (3) `loadPreviousSession` = a *bridge* between an n8n-side
+  transcript and a display — which we don't need, because Drupal already owns its
+  display store.
+
+**The seed — "session from n8n" as a future history mode.** Dr K noticed the
+assistant's **Allow history** dropdown offers only `session` and
+`session_one_thread`, with an upstream comment promising a **database** option
+later — and asked whether we could extend it to a **"session from n8n"** mode.
+This is the right instinct and the natural home for `loadPreviousSession`:
+instead of Drupal replaying its own tempstore, a new history source would, on
+chat-block open, POST `{action:"loadPreviousSession", sessionId}` to the webhook
+and hydrate the box from n8n's `{data:[…]}` (mapping `type`/`kwargs.content` →
+Drupal roles). It only pays off against a **retrieving** memory (Postgres, or a
+Manually-built responder) — Simple Memory returns empty. **Parked, not built:**
+Allow-history is `ai_assistant_api`'s enum, so a real Drupal-side extension point
+(plugin or the promised `database` hook) has to land upstream before we can add a
+mode cleanly; until then this is a documented opportunity, not a Stop. The value:
+it would make Drupal and n8n share ONE transcript instead of keeping two loosely
+in sync.
+
 **Immediate next steps:** none forced — the base is solid and green. When the
 road resumes, it's §4: error mapping and discovery caching are the nearest
-polish; the horizon (webform, tools via MCP, the rest) waits on Dr K.
+polish; the horizon (webform, tools via MCP, the **"session from n8n" history
+mode**, the rest) waits on Dr K.
 
 ---
 
