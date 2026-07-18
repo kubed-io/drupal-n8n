@@ -102,3 +102,11 @@ Feature: Conversations are threaded, and Drupal's session settings ride along
     Given an assistant "RecallDefault" backed by the "History Agent" agent remembering from n8n
     When the assistant's stored conversation is loaded
     Then the loaded conversation has 5 messages
+
+  # Regression: sourcing the transcript from n8n must not swallow the live question.
+  # getMessageHistory feeds the provider too, so it has to end with the new message —
+  # otherwise the workflow is asked nothing and never runs at all.
+  Scenario: A live question in n8n-memory mode still reaches the workflow
+    Given an assistant "LiveAsk" backed by the "Echo Agent" agent remembering from n8n
+    When a visitor chats "does this reach n8n" with the assistant "LiveAsk"
+    Then n8n received the message "does this reach n8n" as the whole conversation

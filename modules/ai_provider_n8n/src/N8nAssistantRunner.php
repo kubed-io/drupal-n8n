@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\ai_provider_n8n;
 
 use Drupal\ai_assistant_api\AiAssistantApiRunner;
+use Drupal\ai_assistant_api\Data\UserMessage;
 use Drupal\n8n\N8nClientInterface;
 
 /**
@@ -92,14 +93,32 @@ class N8nAssistantRunner extends AiAssistantApiRunner {
   /**
    * {@inheritdoc}
    *
-   * For the n8n-memory mode, the transcript comes from the workflow, not the
-   * Drupal session store. Every other mode is the parent's, untouched.
+   * For the n8n-memory mode the PRIOR transcript comes from the workflow, not
+   * the Drupal session store. Every other mode is the parent's, untouched.
+   *
+   * Crucially, this method is not display-only: it is also the message array the
+   * provider answers, and — like every parent mode — it MUST end with the live
+   * user turn, or N8nProvider has no question to send and the workflow never
+   * runs. n8n's loaded transcript is the prior conversation only, so the current
+   * user message is appended as the final element.
    */
   public function getMessageHistory() {
     if (!$this->isN8nHistoryMode()) {
       return parent::getMessageHistory();
     }
-    return $this->loadHistoryFromN8n();
+    $history = $this->loadHistoryFromN8n();
+    if (isset($this->userMessage) && $this->userMessage instanceof UserMessage) {
+      $history[] = [
+        'role' => 'user',
+        'message' => $this->userMessage->getMessage(),
+      ];
+      // Keep the same window the base runner answers with: n pairs plus the
+      // newest message. loadHistoryFromN8n already trimmed the prior turns, so
+      // trim once more now the live turn is on the end.
+      $keep = (int) $this->assistant->get('history_context_length') * 2 + 1;
+      $history = array_slice($history, -$keep, $keep);
+    }
+    return $history;
   }
 
   /**
@@ -115,12 +134,13 @@ class N8nAssistantRunner extends AiAssistantApiRunner {
    * Loads and bounds the transcript n8n holds for this session.
    *
    * A load failure must never stop the chat box opening, so any error yields an
-   * empty transcript — the box simply opens fresh. The result is bounded the
-   * same way the base runner bounds a Drupal-stored transcript: the last
-   * history_context_length pairs plus the newest message.
+   * empty transcript — the box simply opens fresh. Only the PRIOR turns are
+   * returned; getMessageHistory() appends the live user message. The result is
+   * bounded the same way the base runner bounds a Drupal-stored transcript: the
+   * last history_context_length pairs plus the newest message.
    *
    * @return list<array{role: string, message: string}>
-   *   The past turns, oldest first.
+   *   The prior turns, oldest first.
    */
   protected function loadHistoryFromN8n(): array {
     $workflow_id = (string) $this->assistant->get('llm_model');
