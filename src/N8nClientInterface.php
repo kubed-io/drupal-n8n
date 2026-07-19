@@ -102,4 +102,28 @@ interface N8nClientInterface {
    */
   public function chatSend(string $workflow_id, string $session_id, string $message, array $metadata = []): string;
 
+  /**
+   * Loads a session's transcript from a workflow's chat memory.
+   *
+   * Posts n8n's `loadPreviousSession` action to the chat webhook — the same call
+   * n8n's own `@n8n/chat` widget makes when it reopens a conversation — and maps
+   * the reply into Drupal's history shape. It only returns turns when the
+   * workflow answers with a retrieving memory (Postgres Chat Memory, or a
+   * workflow that responds to the action by hand); Simple Memory or no memory
+   * node yields an empty transcript.
+   *
+   * @param string $workflow_id
+   *   The workflow to ask; must be one listChatWorkflows() returned.
+   * @param string $session_id
+   *   The conversation key whose transcript to load.
+   *
+   * @return list<array{role: string, message: string}>
+   *   The past turns, oldest first, roles normalised to user/assistant/system.
+   *   Empty when the workflow has no transcript for this session.
+   *
+   * @throws \RuntimeException
+   *   When the workflow is unknown or unreachable.
+   */
+  public function loadPreviousSession(string $workflow_id, string $session_id): array;
+
 }

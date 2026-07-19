@@ -553,4 +553,130 @@ class N8nClientTest extends UnitTestCase {
     $this->assertSame(60, $this->history[1]['options']['timeout']);
   }
 
+  /**
+   * Loading a session posts the load contract to the trigger's chat URL.
+   *
+   * @covers ::loadPreviousSession
+   */
+  public function testLoadPreviousSessionPostsTheLoadContract(): void {
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'History Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], '{"data":[]}'),
+    ]);
+
+    $client->loadPreviousSession('wf1', 'session-abc');
+
+    $request = $this->history[1]['request'];
+    $this->assertSame('POST', $request->getMethod());
+    $this->assertSame('/webhook/hook-1/chat', $request->getUri()->getPath());
+    $body = json_decode((string) $request->getBody(), TRUE);
+    $this->assertSame('loadPreviousSession', $body['action']);
+    $this->assertSame('session-abc', $body['sessionId']);
+    $this->assertArrayNotHasKey('chatInput', $body, 'A load is not a message.');
+    $this->assertFalse($request->hasHeader('X-N8N-API-KEY'), 'The admin key must not travel to the chat webhook.');
+  }
+
+  /**
+   * Serialised LangChain messages map to Drupal roles, oldest first.
+   *
+   * The `{data: [...]}` shape and the id-path role marker are exactly what a
+   * Postgres Chat Memory node returns, so this proves we read a real memory.
+   *
+   * @covers ::loadPreviousSession
+   * @covers ::roleOfLangchainMessage
+   */
+  public function testLoadPreviousSessionMapsLangchainMessages(): void {
+    $data = json_encode([
+      'data' => [
+        [
+          'type' => 'constructor',
+          'id' => ['langchain_core', 'messages', 'HumanMessage'],
+          'kwargs' => ['content' => 'hi'],
+        ],
+        [
+          'type' => 'constructor',
+          'id' => ['langchain_core', 'messages', 'AIMessage'],
+          'kwargs' => ['content' => 'hello'],
+        ],
+        [
+          'type' => 'constructor',
+          'id' => ['langchain_core', 'messages', 'SystemMessage'],
+          'kwargs' => ['content' => 'be nice'],
+        ],
+      ],
+    ]);
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'History Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], $data),
+    ]);
+
+    $history = $client->loadPreviousSession('wf1', 's');
+
+    $this->assertSame([
+      ['role' => 'user', 'message' => 'hi'],
+      ['role' => 'assistant', 'message' => 'hello'],
+      ['role' => 'system', 'message' => 'be nice'],
+    ], $history);
+  }
+
+  /**
+   * A simpler `type: human|ai` encoding is understood too.
+   *
+   * @covers ::loadPreviousSession
+   * @covers ::roleOfLangchainMessage
+   */
+  public function testLoadPreviousSessionUnderstandsTheSimpleTypeEncoding(): void {
+    $data = json_encode([
+      'data' => [
+        ['type' => 'human', 'content' => 'ping'],
+        ['type' => 'ai', 'content' => 'pong'],
+      ],
+    ]);
+    $client = $this->buildClient([
+      $this->workflowListing([
+        ['id' => 'wf1', 'name' => 'History Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+      ]),
+      new Response(200, [], $data),
+    ]);
+
+    $this->assertSame([
+      ['role' => 'user', 'message' => 'ping'],
+      ['role' => 'assistant', 'message' => 'pong'],
+    ], $client->loadPreviousSession('wf1', 's'));
+  }
+
+  /**
+   * A workflow with no retrieving memory answers empty — that is not an error.
+   *
+   * @covers ::loadPreviousSession
+   */
+  public function testLoadPreviousSessionReturnsEmptyWhenNoTranscript(): void {
+    foreach (['{"data":[]}', '{}', '[]'] as $payload) {
+      $client = $this->buildClient([
+        $this->workflowListing([
+          ['id' => 'wf1', 'name' => 'History Agent', 'nodes' => [$this->chatTrigger('hook-1')]],
+        ]),
+        new Response(200, [], $payload),
+      ]);
+      $this->assertSame([], $client->loadPreviousSession('wf1', 's'), "Payload $payload should load nothing.");
+    }
+  }
+
+  /**
+   * An unknown or unlisted workflow refuses before reaching the network.
+   *
+   * @covers ::loadPreviousSession
+   */
+  public function testLoadPreviousSessionRefusesAnUnknownModel(): void {
+    $client = $this->buildClient([$this->workflowListing([])]);
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessageMatches('/not an available chat model/');
+    $client->loadPreviousSession('nope', 's');
+  }
+
 }

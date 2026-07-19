@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A third Allow history mode, **Session (from n8n memory)**: instead of Drupal keeping its own transcript, the chat box is rehydrated live from the n8n agent's memory, so Drupal and n8n show one conversation — requires a retrieving memory node (e.g. Postgres Chat Memory) on the agent.
 - Session sizing from Drupal: an assistant's History context length rides along as `metadata.context_window`, so an n8n memory node can set its Context Window Length from Drupal — like `@n8n/chat`, sourced from Drupal's session instead of the browser's localStorage.
 
 ### Changed

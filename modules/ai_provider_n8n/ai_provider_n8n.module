@@ -1,0 +1,30 @@
+<?php
+
+/**
+ * @file
+ * Hook implementations for the n8n Provider module.
+ */
+
+declare(strict_types=1);
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\ai_provider_n8n\N8nAssistantRunner;
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter() for the AI Assistant form.
+ *
+ * Adds a third "Allow history" mode alongside the core None and Session options:
+ * "Session (from n8n memory)", which paints the chat box from the n8n workflow's
+ * own memory instead of Drupal's session store. It is only meaningful when the
+ * assistant's provider is n8n and its agent has a retrieving memory node — the
+ * README's "Where the conversation is remembered" section spells that out. The
+ * runner ignores the mode for any non-n8n assistant, so the extra option is
+ * inert there rather than misbehaving.
+ *
+ * @see \Drupal\ai_provider_n8n\N8nAssistantRunner
+ */
+function ai_provider_n8n_form_ai_assistant_form_alter(array &$form, FormStateInterface $form_state): void {
+  if (isset($form['advanced']['allow_history']['#options'])) {
+    $form['advanced']['allow_history']['#options'][N8nAssistantRunner::HISTORY_MODE] = t('Session (from n8n memory)');
+  }
+}
