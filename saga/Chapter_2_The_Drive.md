@@ -1855,3 +1855,22 @@ The seam already calls all three helpers, so nothing new to wire. As Copilot's
 commits land, Claude runs the full suite, keeps CI green, orders the CHANGELOG,
 and — once green **and** approved (one approval; an agent can't self-approve, so
 that's Dr K) — squash-merges to `main`.
+
+### Status — 2026-07-19 (live; PR #15)
+
+Branch `ch2-signature-context`, two commits pushed:
+- **user-context (Claude): landed.** `userContextMetadata()` + `api_defaults`
+  opt-in + `N8nUserContextTest` (green in isolation) + Behat steps. The
+  precise-identity scenario is `@todo` (needs harness account-switching); the
+  logic is proven by the unit test. The shared bare Given `an assistant :id backed
+  by the :agent agent` is **already defined** in `FeatureContext` — Copilot must
+  **not** redefine it.
+- **page-context (Copilot): subsystem landed** — `N8nChatContext`,
+  `ChatContextSubscriber`, `ai_provider_n8n.services.yml`, `pageContextMetadata()`.
+  **Remaining:** its unit/kernel test + Behat step defs wired to
+  `page-context.feature`; verify the caching caveat (§1.6.2).
+- **agents (Copilot): not started.** `agentsMetadata()` is still a `[]` stub —
+  task 2 above.
+
+PM (Claude) next: as agents + page-context tests land, run the full suite and
+drive CI to green before asking Dr K for the approval.
