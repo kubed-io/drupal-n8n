@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The agents and page-context specs are wired and running end to end: the Echo Agent proves the selected agents arrive as `aif_` ids without a second provider call, and that a content page forwards its path and entity while a listing forwards only the path.
 - The session-memory spec is wired and running: the thread key becomes n8n's session id, only the newest message travels, and the history length reaches n8n — proven end to end. The README explains the `@n8n/chat` parallel and that the chat trigger's Load Previous Session setting is n8n's own concern, not Drupal's.
 - Instructions and History context length are documented as forwarded context, not inert settings.
 

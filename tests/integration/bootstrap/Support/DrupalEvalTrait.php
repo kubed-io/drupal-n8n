@@ -155,17 +155,24 @@ trait DrupalEvalTrait {
    * companion agent, which calls our provider, which posts to n8n. Against the
    * Echo Agent fixture the reply text is the echoed request, so a caller can
    * read back exactly what n8n received.
+   *
+   * The optional context is what the chat block would have sent — its
+   * current_route is the page the box is on. It rides on the runner exactly as
+   * the block sets it, so the page-context subscriber sees the same event it
+   * sees in production. An empty context is the no-page default.
    */
-  protected function chatThroughAssistant(string $id, string $message): string {
+  protected function chatThroughAssistant(string $id, string $message, array $context = []): string {
     return (string) $this->drupalEvalJson(strtr(<<<'PHP'
       $runner = \Drupal::service('ai_assistant_api.runner');
       $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
       $runner->setUserMessage(new \Drupal\ai_assistant_api\Data\UserMessage(MSG));
+      $runner->setContext(CONTEXT);
       $runner->setThrowException(TRUE);
       echo json_encode($runner->process()->getNormalized()->getText());
       PHP, [
         'ID' => var_export($id, TRUE),
         'MSG' => var_export($message, TRUE),
+        'CONTEXT' => var_export($context, TRUE),
       ]));
   }
 

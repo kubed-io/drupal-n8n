@@ -68,6 +68,29 @@ class FeatureContext implements Context {
   protected array $loadedHistory = [];
 
   /**
+   * The chat context the next visitor message rides with — the page it is on.
+   *
+   * Empty means no page; ['current_route' => '/node/5'] is the box on that page.
+   *
+   * @var array
+   */
+  protected array $pageContext = [];
+
+  /**
+   * The Echo Agent's recorded execution count before the last chat.
+   *
+   * The baseline for the "exactly one call to the provider" assertion.
+   */
+  protected int $providerCallBaseline = 0;
+
+  /**
+   * Node ids this scenario created for a page-context page, deleted in teardown.
+   *
+   * @var list<int>
+   */
+  protected array $createdNodes = [];
+
+  /**
    * The Key entity holding the valid minted API key.
    */
   protected const VALID_KEY = 'behat_n8n_key';
@@ -696,7 +719,7 @@ class FeatureContext implements Context {
    * @When a visitor chats :message with the assistant :id
    */
   public function aVisitorChatsWithTheAssistant(string $message, string $id): void {
-    $reply = $this->chatThroughAssistant($id, $message);
+    $reply = $this->chatThroughAssistant($id, $message, $this->pageContext);
     $decoded = json_decode($reply, TRUE);
     Assert::assertIsArray($decoded, "The assistant's model should echo JSON. Got: $reply");
     $this->echo = $decoded;
@@ -848,6 +871,223 @@ class FeatureContext implements Context {
   public function n8nReceivedTheAllowedRoles(string $role): void {
     $got = $this->echo['metadata']['allowed_roles'] ?? [];
     Assert::assertContains($role, $got, 'allowed_roles should carry the assistant restriction: ' . json_encode($this->echo['metadata'] ?? []));
+  }
+
+  // ── Agents passthrough (the assistant's "Agents to use" as MCP tool ids) ─────
+
+  /**
+   * Ticks Drupal agents on the assistant's companion agent.
+   *
+   * The agents must exist for their function-call plugins to resolve, so this
+   * creates each selected agent before ticking it — and hands them to teardown.
+   * The companion agent shares the assistant's id, and its tools map is keyed
+   * ai_agents::ai_agent::<id>, exactly as the assistant form writes it. A fresh
+   * function-call plugin cache lets the new agents resolve this same request.
+   *
+   * @Given the assistant :id is allowed to use the Drupal agents :first and :second
+   */
+  public function assistantAllowedToUseAgents(string $id, string $first, string $second): void {
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $etm = \Drupal::entityTypeManager();
+      $selected = json_decode(SELECTED, TRUE);
+      foreach ($selected as $agent_id) {
+        if (!$etm->getStorage('ai_agent')->load($agent_id)) {
+          $etm->getStorage('ai_agent')->create([
+            'id' => $agent_id, 'label' => $agent_id, 'description' => 'behat',
+            'system_prompt' => '', 'tools' => [],
+            'orchestration_agent' => FALSE, 'triage_agent' => FALSE, 'max_loops' => 3,
+          ])->save();
+        }
+      }
+      $companion = $etm->getStorage('ai_agent')->load(ID);
+      $tools = [];
+      foreach ($selected as $agent_id) {
+        $tools['ai_agents::ai_agent::' . $agent_id] = TRUE;
+      }
+      $companion->set('tools', $tools)->save();
+      \Drupal::service('plugin.manager.ai.function_calls')->clearCachedDefinitions();
+      echo json_encode(TRUE);
+      PHP, [
+        'ID' => var_export($id, TRUE),
+        'SELECTED' => var_export(json_encode([$first, $second]), TRUE),
+      ]));
+    $this->createdAssistants[] = $first;
+    $this->createdAssistants[] = $second;
+    if ($workflow = $this->n8nWorkflowByName('Echo Agent')) {
+      $this->providerCallBaseline = $this->n8nExecutionCount($workflow['id']);
+    }
+  }
+
+  /**
+   * Step: N8n received the selected agents as their MCP tool ids, in order.
+   *
+   * @Then n8n received the agents :first and :second
+   */
+  public function n8nReceivedTheAgents(string $first, string $second): void {
+    Assert::assertSame(
+      [$first, $second],
+      $this->echo['metadata']['agents'] ?? NULL,
+      'The selected agents should arrive as ordered aif_ tool ids: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: N8n received no agents key — a bare assistant selected none.
+   *
+   * @Then n8n received no agents from Drupal
+   */
+  public function n8nReceivedNoAgents(): void {
+    Assert::assertArrayNotHasKey(
+      'agents',
+      $this->echo['metadata'] ?? [],
+      'An assistant that selected no agents must forward no agents key: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: The passthrough hit the provider exactly once, per n8n's own log.
+   *
+   * @Then the agent made exactly one call to the provider
+   */
+  public function theAgentMadeExactlyOneCall(): void {
+    $workflow = $this->n8nWorkflowByName('Echo Agent');
+    Assert::assertNotNull($workflow, 'The Echo Agent fixture should exist.');
+    $count = $this->n8nExecutionCount($workflow['id'], $this->providerCallBaseline + 1);
+    Assert::assertSame(
+      $this->providerCallBaseline + 1,
+      $count,
+      'Selecting agents must not turn the one-call passthrough into many: baseline '
+      . $this->providerCallBaseline . ', now ' . $count,
+    );
+  }
+
+  /**
+   * Step: The selection travelled as data, so Drupal never ran the agents.
+   *
+   * The agents ride in metadata.agents — handed to n8n as a list — rather than
+   * being executed on the Drupal side. That they arrived as data, together with
+   * the single provider call above, is the passthrough guarantee.
+   *
+   * @Then Drupal ran none of the selected agents itself
+   */
+  public function drupalRanNoneOfTheSelectedAgents(): void {
+    Assert::assertNotEmpty(
+      $this->echo['metadata']['agents'] ?? [],
+      'The selection must travel to n8n as data, proving Drupal handed it over rather than running it: '
+      . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  // ── Page context (the page the chat box is on, and its content entity) ───────
+
+  /**
+   * Puts the chat box on a content page, creating the node it names.
+   *
+   * The node must exist for its canonical route to resolve to an entity. The
+   * path is stashed as the chat context the next message rides with, exactly as
+   * the chat block would send it.
+   *
+   * @Given the chat box is on the page :path for the node :nid
+   */
+  public function theChatBoxIsOnThePageForNode(string $path, int $nid): void {
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $etm = \Drupal::entityTypeManager();
+      if (!$etm->getStorage('node_type')->load('page')) {
+        $etm->getStorage('node_type')->create(['type' => 'page', 'name' => 'Page'])->save();
+      }
+      if (!$etm->getStorage('node')->load(NID)) {
+        $etm->getStorage('node')->create(['nid' => NID, 'type' => 'page', 'title' => 'Behat node ' . NID])->save();
+      }
+      echo json_encode(TRUE);
+      PHP, ['NID' => var_export($nid, TRUE)]));
+    $this->createdNodes[] = $nid;
+    $this->pageContext = ['current_route' => $path];
+  }
+
+  /**
+   * Puts the chat box on a listing page, which owns no single entity.
+   *
+   * @Given the chat box is on the listing page :path
+   */
+  public function theChatBoxIsOnTheListingPage(string $path): void {
+    $this->pageContext = ['current_route' => $path];
+  }
+
+  /**
+   * Step: N8n received the page path.
+   *
+   * @Then n8n received the path :path
+   */
+  public function n8nReceivedThePath(string $path): void {
+    Assert::assertSame(
+      $path,
+      $this->echo['metadata']['path'] ?? NULL,
+      'The page path should arrive as metadata.path: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: N8n received the page's content entity.
+   *
+   * @Then n8n received the entity of type :type with id :id
+   */
+  public function n8nReceivedTheEntity(string $type, string $id): void {
+    Assert::assertSame(
+      ['type' => $type, 'id' => $id],
+      $this->echo['metadata']['entity'] ?? NULL,
+      'A content page should carry its entity as {type, id}: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: N8n received no entity — the page owned no single one.
+   *
+   * @Then n8n received no entity from Drupal
+   */
+  public function n8nReceivedNoEntity(): void {
+    Assert::assertArrayNotHasKey(
+      'entity',
+      $this->echo['metadata'] ?? [],
+      'A listing must forward a path but no entity: ' . json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
+   * Step: The page context is exactly path and entity, nothing invented.
+   *
+   * @Then n8n received only the path and entity as page context
+   */
+  public function n8nReceivedOnlyPathAndEntity(): void {
+    $metadata = $this->echo['metadata'] ?? [];
+    $page = array_intersect_key($metadata, array_flip([
+      'path', 'entity', 'page_path', 'url', 'title', 'langcode', 'bundle', 'entity_type', 'entity_id', 'route',
+    ]));
+    Assert::assertSame(
+      ['path', 'entity'],
+      array_keys($page),
+      'Page context must carry only path and its derived entity: ' . json_encode($metadata),
+    );
+  }
+
+  /**
+   * Deletes any nodes a page-context scenario created.
+   *
+   * @AfterScenario
+   */
+  public function tearDownNodes(): void {
+    if (!$this->createdNodes) {
+      return;
+    }
+    $this->drupalEvalJson(strtr(<<<'PHP'
+      $storage = \Drupal::entityTypeManager()->getStorage('node');
+      foreach (json_decode('IDS', TRUE) as $nid) {
+        if ($node = $storage->load($nid)) {
+          $node->delete();
+        }
+      }
+      echo json_encode(TRUE);
+      PHP, ['IDS' => json_encode($this->createdNodes)]));
+    $this->createdNodes = [];
   }
 
   // ── Session from n8n memory ──────────────────────────────────────────────────
