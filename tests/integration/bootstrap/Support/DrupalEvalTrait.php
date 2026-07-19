@@ -175,7 +175,7 @@ trait DrupalEvalTrait {
    *   JSON: {"reply": string, "provider_calls": int}.
    */
   protected function chatThroughAssistant(string $id, string $message, array $context = []): string {
-    return (string) $this->drupalEvalJson(strtr(<<<'PHP'
+    $result = $this->drupalEvalJson(strtr(<<<'PHP'
       $chat_context = \Drupal::service('n8n.chat_context');
       $chat_context->resetProviderCalls();
       $switcher = \Drupal::service('account_switcher');
@@ -201,6 +201,7 @@ trait DrupalEvalTrait {
         'MSG' => var_export($message, TRUE),
         'CONTEXT' => var_export($context, TRUE),
       ]));
+    return (string) json_encode($result);
   }
 
   /**
