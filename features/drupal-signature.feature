@@ -35,3 +35,10 @@ Feature: Every message carries the Drupal signature envelope
     Then n8n received the message "hello from behat" as the whole conversation
     And n8n received the session id "behat-signature"
     And the message carried the Drupal signature
+
+  # The assistant's human name rides the envelope beside its machine id, so a
+  # workflow can greet or log by the name an admin actually gave the assistant.
+  Scenario: The signature carries the assistant's display name
+    Given an assistant "reception" named "Reception Desk" backed by the "Echo Agent" agent
+    When a visitor chats "hello" with the assistant "reception"
+    Then n8n received the assistant name "Reception Desk"

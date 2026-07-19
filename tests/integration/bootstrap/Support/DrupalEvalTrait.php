@@ -89,7 +89,7 @@ trait DrupalEvalTrait {
    * llm_configuration or specific_error_messages becomes unloadable AND
    * undeletable through the entity API. See saga Chapter 2 §1.1c.
    */
-  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread', array $roles = [], array $configuration = []): void {
+  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread', array $roles = [], array $configuration = [], string $label = ''): void {
     $this->drupalEvalJson(strtr(<<<'PHP'
       $etm = \Drupal::entityTypeManager();
       foreach (['ai_assistant', 'ai_agent'] as $type) {
@@ -103,7 +103,7 @@ trait DrupalEvalTrait {
         'orchestration_agent' => TRUE, 'triage_agent' => FALSE, 'max_loops' => 3,
       ])->save();
       $etm->getStorage('ai_assistant')->create([
-        'id' => ID, 'label' => ID, 'description' => 'behat', 'ai_agent' => ID,
+        'id' => ID, 'label' => LABEL, 'description' => 'behat', 'ai_agent' => ID,
         'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => CONFIGURATION,
         'instructions' => INSTRUCTIONS, 'allow_history' => ALLOW_HISTORY,
         'history_context_length' => HISTORY, 'assistant_message' => 'hi',
@@ -115,6 +115,7 @@ trait DrupalEvalTrait {
       echo json_encode(TRUE);
       PHP, [
         'ID' => var_export($id, TRUE),
+        'LABEL' => var_export($label !== '' ? $label : $id, TRUE),
         'WORKFLOW' => var_export($workflow_id, TRUE),
         'INSTRUCTIONS' => var_export($instructions, TRUE),
         'HISTORY' => var_export((string) $history_length, TRUE),
@@ -156,13 +157,27 @@ trait DrupalEvalTrait {
    * Echo Agent fixture the reply text is the echoed request, so a caller can
    * read back exactly what n8n received.
    *
+   * The chat runs as user 1 so a role-restricted assistant clears the runner's
+   * access gate — the harness stands in for a logged-in visitor who may use the
+   * assistant, which is the only path this suite exercises.
+   *
    * The optional context is what the chat block would have sent — its
    * current_route is the page the box is on. It rides on the runner exactly as
    * the block sets it, so the page-context subscriber sees the same event it
    * sees in production. An empty context is the no-page default.
+   *
+   * Returns a JSON object: reply is the model's text (the Echo Agent's echoed
+   * request), and provider_calls is how many times the provider posted to n8n
+   * during the turn — the reliable, in-request witness for the one-call
+   * passthrough, counted whether or not n8n persists the execution.
+   *
+   * @return string
+   *   JSON: {"reply": string, "provider_calls": int}.
    */
   protected function chatThroughAssistant(string $id, string $message, array $context = []): string {
     return (string) $this->drupalEvalJson(strtr(<<<'PHP'
+      $chat_context = \Drupal::service('n8n.chat_context');
+      $chat_context->resetProviderCalls();
       $switcher = \Drupal::service('account_switcher');
       $admin = \Drupal::entityTypeManager()->getStorage('user')->load(1);
       $switcher->switchTo($admin);
@@ -177,7 +192,10 @@ trait DrupalEvalTrait {
       finally {
         $switcher->switchBack();
       }
-      echo json_encode($text);
+      echo json_encode([
+        'reply' => $text,
+        'provider_calls' => $chat_context->getProviderCallCount(),
+      ]);
       PHP, [
         'ID' => var_export($id, TRUE),
         'MSG' => var_export($message, TRUE),

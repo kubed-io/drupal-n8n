@@ -229,6 +229,58 @@ class N8nSignatureContextTest extends UnitTestCase {
     $this->assertSame([], $this->callProtected($provider, 'agentsMetadata', ['ghost']));
   }
 
+  // ── Assistant display name ───────────────────────────────────────────────
+
+  /**
+   * An entity type manager whose ai_assistant storage returns a fixed label.
+   *
+   * @param string|null $label
+   *   The assistant's label, or NULL to make the assistant absent.
+   *
+   * @return \Drupal\Core\Entity\EntityTypeManagerInterface
+   *   The mocked manager.
+   */
+  protected function assistantManager(?string $label): EntityTypeManagerInterface {
+    $storage = $this->createMock(EntityStorageInterface::class);
+    if ($label === NULL) {
+      $storage->method('load')->willReturn(NULL);
+    }
+    else {
+      $assistant = $this->createMock(ConfigEntityInterface::class);
+      $assistant->method('label')->willReturn($label);
+      $storage->method('load')->willReturn($assistant);
+    }
+    $etm = $this->createMock(EntityTypeManagerInterface::class);
+    $etm->method('hasDefinition')->with('ai_assistant')->willReturn(TRUE);
+    $etm->method('getStorage')->with('ai_assistant')->willReturn($storage);
+    return $etm;
+  }
+
+  /**
+   * The assistant's label is forwarded, trimmed, as its human name.
+   *
+   * @covers ::assistantName
+   */
+  public function testAssistantNameForwardsTheLabel(): void {
+    $provider = $this->provider(etm: $this->assistantManager('  Reception Desk  '));
+
+    $this->assertSame(
+      'Reception Desk',
+      $this->callProtected($provider, 'assistantName', ['reception']),
+    );
+  }
+
+  /**
+   * A missing assistant yields the empty string, so the key is absent.
+   *
+   * @covers ::assistantName
+   */
+  public function testAssistantNameIsEmptyWhenAbsent(): void {
+    $provider = $this->provider(etm: $this->assistantManager(NULL));
+
+    $this->assertSame('', $this->callProtected($provider, 'assistantName', ['ghost']));
+  }
+
   /**
    * The id form mirrors drupal/mcp: lowercased, cleaned, digit-guarded.
    *

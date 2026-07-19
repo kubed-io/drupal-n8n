@@ -32,6 +32,19 @@ class N8nChatContext {
   protected ?string $path = NULL;
 
   /**
+   * How many times the provider posted to n8n during this request.
+   *
+   * A passthrough assistant must reach n8n exactly once per turn: selecting
+   * Drupal agents hands n8n a list, it never fans out into a call per agent.
+   * The provider tallies each chat() here so a test can prove that from inside
+   * the same request, independent of whether n8n happens to persist the
+   * execution — the reliable witness the "one call" guarantee needs.
+   *
+   * @var int
+   */
+  protected int $providerCalls = 0;
+
+  /**
    * Records the page path the chat box reported.
    *
    * @param string|null $path
@@ -49,6 +62,30 @@ class N8nChatContext {
    */
   public function getPath(): ?string {
     return $this->path;
+  }
+
+  /**
+   * Tallies one provider call to n8n.
+   */
+  public function recordProviderCall(): void {
+    $this->providerCalls++;
+  }
+
+  /**
+   * Resets the provider-call tally to zero.
+   */
+  public function resetProviderCalls(): void {
+    $this->providerCalls = 0;
+  }
+
+  /**
+   * How many times the provider has posted to n8n this request.
+   *
+   * @return int
+   *   The provider-call count.
+   */
+  public function getProviderCallCount(): int {
+    return $this->providerCalls;
   }
 
 }

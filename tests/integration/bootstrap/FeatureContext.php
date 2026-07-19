@@ -77,11 +77,11 @@ class FeatureContext implements Context {
   protected array $pageContext = [];
 
   /**
-   * The Echo Agent's recorded execution count before the last chat.
+   * How many times the provider posted to n8n during the last chat.
    *
-   * The baseline for the "exactly one call to the provider" assertion.
+   * The in-request witness for the one-call passthrough.
    */
-  protected int $providerCallBaseline = 0;
+  protected int $providerCalls = 0;
 
   /**
    * Node ids this scenario created for a page-context page, deleted in teardown.
@@ -719,9 +719,11 @@ class FeatureContext implements Context {
    * @When a visitor chats :message with the assistant :id
    */
   public function aVisitorChatsWithTheAssistant(string $message, string $id): void {
-    $reply = $this->chatThroughAssistant($id, $message, $this->pageContext);
-    $decoded = json_decode($reply, TRUE);
-    Assert::assertIsArray($decoded, "The assistant's model should echo JSON. Got: $reply");
+    $result = json_decode($this->chatThroughAssistant($id, $message, $this->pageContext), TRUE);
+    Assert::assertIsArray($result, 'The pipeline should return the reply and provider-call count.');
+    $this->providerCalls = (int) ($result['provider_calls'] ?? 0);
+    $decoded = json_decode($result['reply'] ?? '', TRUE);
+    Assert::assertIsArray($decoded, "The assistant's model should echo JSON. Got: " . ($result['reply'] ?? ''));
     $this->echo = $decoded;
   }
 
@@ -781,6 +783,22 @@ class FeatureContext implements Context {
    */
   public function anAssistantBackedByAgent(string $id, string $agent): void {
     $this->createAssistantForFixture($id, $agent, '');
+  }
+
+  /**
+   * Step: An assistant whose human display name differs from its machine id.
+   *
+   * The signature carries both — the id in metadata.assistant and the label in
+   * metadata.assistant_name — so this creates an assistant whose label is not its
+   * id, letting a scenario prove the display name travels on its own.
+   *
+   * @Given an assistant :id named :name backed by the :agent agent
+   */
+  public function anAssistantNamed(string $id, string $name, string $agent): void {
+    $workflow = $this->n8nWorkflowByName($agent);
+    Assert::assertNotNull($workflow, "No fixture named '$agent'.");
+    $this->createN8nAssistant($id, $workflow['id'], '', 2, 'session_one_thread', [], [], $name);
+    $this->createdAssistants[] = $id;
   }
 
   /**
@@ -855,6 +873,19 @@ class FeatureContext implements Context {
   }
 
   /**
+   * Step: N8n received the assistant's human display name.
+   *
+   * @Then n8n received the assistant name :name
+   */
+  public function n8nReceivedTheAssistantName(string $name): void {
+    Assert::assertSame(
+      $name,
+      $this->echo['metadata']['assistant_name'] ?? NULL,
+      json_encode($this->echo['metadata'] ?? []),
+    );
+  }
+
+  /**
    * Step: N8n received no visitor roles — the opt-in was off.
    *
    * @Then n8n received no user roles from Drupal
@@ -913,9 +944,6 @@ class FeatureContext implements Context {
       ]));
     $this->createdAssistants[] = $first;
     $this->createdAssistants[] = $second;
-    if ($workflow = $this->n8nWorkflowByName('Echo Agent')) {
-      $this->providerCallBaseline = $this->n8nExecutionCount($workflow['id']);
-    }
   }
 
   /**
@@ -945,27 +973,22 @@ class FeatureContext implements Context {
   }
 
   /**
-   * Step: The passthrough hit the provider exactly once, per n8n's own log.
+   * Step: The passthrough hit the provider exactly once.
    *
-   * Throws a plain exception on mismatch rather than asserting, so the failure
-   * carries the real count into the log — an assertion that fails under Behat
-   * trips PHPUnit's config registry and reports nothing useful.
+   * The provider tallies each post to n8n in the request-scoped chat context, so
+   * this reads the count the last chat produced — a deterministic, in-request
+   * witness that does not depend on whether n8n persists the execution. If
+   * Drupal had run the selected agents, the agent loop would have posted again.
    *
    * @Then the agent made exactly one call to the provider
    */
   public function theAgentMadeExactlyOneCall(): void {
-    $workflow = $this->n8nWorkflowByName('Echo Agent');
-    Assert::assertNotNull($workflow, 'The Echo Agent fixture should exist.');
-    $expected = $this->providerCallBaseline + 1;
-    $count = $this->n8nSettledExecutionCount($workflow['id'], $expected);
-    if ($count !== $expected) {
-      throw new \RuntimeException(sprintf(
-        'Selecting agents must not change the one-call passthrough: expected %d executions (baseline %d + 1), n8n recorded %d.',
-        $expected,
-        $this->providerCallBaseline,
-        $count,
-      ));
-    }
+    Assert::assertSame(
+      1,
+      $this->providerCalls,
+      'Selecting agents must not turn the one-call passthrough into many: the provider posted '
+      . $this->providerCalls . ' times.',
+    );
   }
 
   /**

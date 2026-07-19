@@ -208,6 +208,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * instructions Drupal enforces.
    */
   public function chat(array|string|ChatInput $input, string $model_id, array $tags = []): ChatOutput {
+    $this->chatContext->recordProviderCall();
     $text = $this->client->chatSend(
       $model_id,
       $this->sessionIdFromTags($tags),
@@ -226,12 +227,14 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    *   source: always "drupal" — how a workflow tells Drupal traffic from n8n's
    *     own chat UI. site: the site name. assistant: the machine id of the
    *     assistant's companion agent, so one workflow serving several assistants
-   *     can tell its callers apart. instructions: the assistant's own
-   *     instructions, CLEAN — never present when the assistant has none, so a
-   *     zero-detail assistant is a pure passthrough. context_window: the
-   *     assistant's History context length, so a memory node can size its window
-   *     from Drupal — absent when unset. All offered as variables the workflow
-   *     may use, never injected into the conversation.
+   *     can tell its callers apart. assistant_name: the assistant's human name
+   *     (its Drupal label), so a workflow can greet or log by the name the admin
+   *     sees — absent when no assistant entity backs the call. instructions: the
+   *     assistant's own instructions, CLEAN — never present when the assistant
+   *     has none, so a zero-detail assistant is a pure passthrough. context_window:
+   *     the assistant's History context length, so a memory node can size its
+   *     window from Drupal — absent when unset. All offered as variables the
+   *     workflow may use, never injected into the conversation.
    */
   protected function drupalSignature(array $tags): array {
     $signature = [
@@ -240,6 +243,9 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
     ];
     if ($agent_id = $this->assistantIdFromTags($tags)) {
       $signature['assistant'] = $agent_id;
+      if ($name = $this->assistantName($agent_id)) {
+        $signature['assistant_name'] = $name;
+      }
       if ($instructions = $this->assistantInstructions($agent_id)) {
         $signature['instructions'] = $instructions;
       }
@@ -448,6 +454,23 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
     }
     $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
     return $assistant ? (int) $assistant->get('history_context_length') : 0;
+  }
+
+  /**
+   * The assistant's human name, the label the admin gave it in Drupal.
+   *
+   * The tag carries the agent id, which for a form-created assistant equals the
+   * assistant id, so we load the assistant entity and forward its label. This is
+   * the display name an admin sees, distinct from the machine id in `assistant` —
+   * a workflow can greet or log by it. Absent when no assistant entity backs the
+   * call (for example the bare-transport path, which has only the tag).
+   */
+  protected function assistantName(string $agent_id): string {
+    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
+      return '';
+    }
+    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    return $assistant ? trim((string) $assistant->label()) : '';
   }
 
   /**
