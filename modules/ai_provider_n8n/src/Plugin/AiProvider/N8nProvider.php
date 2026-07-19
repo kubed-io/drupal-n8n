@@ -260,12 +260,12 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   /**
    * The visitor's identity and the assistant's access list. See user-context.feature.
    *
-   * allowed_roles is the assistant's own enabled roles: Drupal has already
-   * enforced that gate before the message left, so it rides as context, never as
-   * a gate, and only when the assistant actually restricts. user and user_roles
-   * are personal data, so they travel only when this assistant opts in via
-   * forward_user_context (default off). Every key is absent when it has nothing
-   * to say.
+   * The allowed_roles key is the assistant's own enabled roles: Drupal has
+   * already enforced that gate before the message left, so it rides as context,
+   * never as a gate, and only when the assistant actually restricts. user and
+   * user_roles are personal data, so they travel only when this assistant opts
+   * in via forward_user_context (default off). Every key is absent when it has
+   * nothing to say.
    */
   protected function userContextMetadata(string $agent_id): array {
     if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {

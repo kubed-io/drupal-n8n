@@ -85,12 +85,31 @@ class N8nSignatureContextTest extends UnitTestCase {
    */
   protected function fakeTool(string $name): object {
     return new class($name) {
+
+      /**
+       * Constructs the fake tool.
+       *
+       * @param string $name
+       *   The name its rendered function array reports.
+       */
       public function __construct(protected string $name) {}
 
+      /**
+       * Mirrors the real plugin's fluent normalize().
+       *
+       * @return static
+       *   This instance.
+       */
       public function normalize(): static {
         return $this;
       }
 
+      /**
+       * The rendered function array, carrying only the name we assert on.
+       *
+       * @return array
+       *   The function array with its name.
+       */
       public function renderFunctionArray(): array {
         return ['name' => $this->name];
       }
