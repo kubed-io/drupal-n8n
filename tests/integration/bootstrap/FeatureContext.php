@@ -947,18 +947,25 @@ class FeatureContext implements Context {
   /**
    * Step: The passthrough hit the provider exactly once, per n8n's own log.
    *
+   * Throws a plain exception on mismatch rather than asserting, so the failure
+   * carries the real count into the log — an assertion that fails under Behat
+   * trips PHPUnit's config registry and reports nothing useful.
+   *
    * @Then the agent made exactly one call to the provider
    */
   public function theAgentMadeExactlyOneCall(): void {
     $workflow = $this->n8nWorkflowByName('Echo Agent');
     Assert::assertNotNull($workflow, 'The Echo Agent fixture should exist.');
-    $count = $this->n8nExecutionCount($workflow['id'], $this->providerCallBaseline + 1);
-    Assert::assertSame(
-      $this->providerCallBaseline + 1,
-      $count,
-      'Selecting agents must not turn the one-call passthrough into many: baseline '
-      . $this->providerCallBaseline . ', now ' . $count,
-    );
+    $expected = $this->providerCallBaseline + 1;
+    $count = $this->n8nSettledExecutionCount($workflow['id'], $expected);
+    if ($count !== $expected) {
+      throw new \RuntimeException(sprintf(
+        'Selecting agents must not change the one-call passthrough: expected %d executions (baseline %d + 1), n8n recorded %d.',
+        $expected,
+        $this->providerCallBaseline,
+        $count,
+      ));
+    }
   }
 
   /**

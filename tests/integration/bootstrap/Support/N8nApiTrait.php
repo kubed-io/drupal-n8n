@@ -137,37 +137,56 @@ trait N8nApiTrait {
   }
 
   /**
-   * How many executions n8n has recorded for a workflow.
+   * How many executions n8n has recorded for a workflow, right now.
    *
    * The other side of the "exactly one call" assertion: n8n's own execution log
    * is the independent witness that the agent hit the provider once, not once
-   * per selected tool. n8n saves an execution as the synchronous chat call
-   * returns, but the write can trail the HTTP response by a beat, so this polls
-   * briefly for the count to settle rather than reading it once.
+   * per selected tool.
    *
    * @param string $workflow_id
    *   The n8n workflow id.
-   * @param int $at_least
-   *   Keep polling until the count reaches this, or the budget runs out.
    *
    * @return int
    *   The number of recorded executions.
    */
-  protected function n8nExecutionCount(string $workflow_id, int $at_least = 0): int {
-    $count = 0;
-    for ($attempt = 0; $attempt < 10; $attempt++) {
-      $response = $this->n8n()->get('/api/v1/executions', [
-        'headers' => ['X-N8N-API-KEY' => $this->n8nApiKey()],
-        'query' => ['workflowId' => $workflow_id, 'limit' => 250],
-      ]);
-      $body = json_decode((string) $response->getBody(), TRUE);
-      $count = is_array($body) && isset($body['data']) ? count($body['data']) : 0;
-      if ($count >= $at_least) {
-        break;
-      }
-      usleep(200000);
+  protected function n8nExecutionCount(string $workflow_id): int {
+    $response = $this->n8n()->get('/api/v1/executions', [
+      'headers' => ['X-N8N-API-KEY' => $this->n8nApiKey()],
+      'query' => ['workflowId' => $workflow_id, 'limit' => 250],
+    ]);
+    $body = json_decode((string) $response->getBody(), TRUE);
+    return is_array($body) && isset($body['data']) ? count($body['data']) : 0;
+  }
+
+  /**
+   * Waits for a workflow's execution count to reach a target, then returns it.
+   *
+   * n8n saves an execution as the synchronous chat call finishes, but the write
+   * can trail the HTTP response by a beat under load. This polls until the count
+   * reaches the target (the expected post-chat total), then waits a further beat
+   * and re-reads — so a second, unexpected call would push the count past the
+   * target and be caught rather than hidden by an early return.
+   *
+   * @param string $workflow_id
+   *   The n8n workflow id.
+   * @param int $target
+   *   The count to wait for — the settled value the caller expects.
+   * @param int $timeout_ms
+   *   How long to wait for the target, in milliseconds.
+   *
+   * @return int
+   *   The execution count after it reached the target and settled.
+   */
+  protected function n8nSettledExecutionCount(string $workflow_id, int $target, int $timeout_ms = 15000): int {
+    $deadline = microtime(TRUE) + $timeout_ms / 1000;
+    $count = $this->n8nExecutionCount($workflow_id);
+    while ($count < $target && microtime(TRUE) < $deadline) {
+      usleep(400000);
+      $count = $this->n8nExecutionCount($workflow_id);
     }
-    return $count;
+    // Give a late second call a chance to show up before trusting the total.
+    usleep(1500000);
+    return $this->n8nExecutionCount($workflow_id);
   }
 
 }

@@ -163,12 +163,21 @@ trait DrupalEvalTrait {
    */
   protected function chatThroughAssistant(string $id, string $message, array $context = []): string {
     return (string) $this->drupalEvalJson(strtr(<<<'PHP'
-      $runner = \Drupal::service('ai_assistant_api.runner');
-      $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
-      $runner->setUserMessage(new \Drupal\ai_assistant_api\Data\UserMessage(MSG));
-      $runner->setContext(CONTEXT);
-      $runner->setThrowException(TRUE);
-      echo json_encode($runner->process()->getNormalized()->getText());
+      $switcher = \Drupal::service('account_switcher');
+      $admin = \Drupal::entityTypeManager()->getStorage('user')->load(1);
+      $switcher->switchTo($admin);
+      try {
+        $runner = \Drupal::service('ai_assistant_api.runner');
+        $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
+        $runner->setUserMessage(new \Drupal\ai_assistant_api\Data\UserMessage(MSG));
+        $runner->setContext(CONTEXT);
+        $runner->setThrowException(TRUE);
+        $text = $runner->process()->getNormalized()->getText();
+      }
+      finally {
+        $switcher->switchBack();
+      }
+      echo json_encode($text);
       PHP, [
         'ID' => var_export($id, TRUE),
         'MSG' => var_export($message, TRUE),
