@@ -89,7 +89,7 @@ trait DrupalEvalTrait {
    * llm_configuration or specific_error_messages becomes unloadable AND
    * undeletable through the entity API. See saga Chapter 2 §1.1c.
    */
-  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread'): void {
+  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread', array $roles = [], array $configuration = []): void {
     $this->drupalEvalJson(strtr(<<<'PHP'
       $etm = \Drupal::entityTypeManager();
       foreach (['ai_assistant', 'ai_agent'] as $type) {
@@ -104,11 +104,11 @@ trait DrupalEvalTrait {
       ])->save();
       $etm->getStorage('ai_assistant')->create([
         'id' => ID, 'label' => ID, 'description' => 'behat', 'ai_agent' => ID,
-        'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => [],
+        'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => CONFIGURATION,
         'instructions' => INSTRUCTIONS, 'allow_history' => ALLOW_HISTORY,
         'history_context_length' => HISTORY, 'assistant_message' => 'hi',
         'no_results_message' => 'no results', 'error_message' => 'error: [error_message]',
-        'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => [],
+        'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => ROLES,
         'system_prompt' => '', 'pre_action_prompt' => '', 'preprompt_instructions' => '',
         'use_function_calling' => FALSE,
       ])->save();
@@ -119,6 +119,8 @@ trait DrupalEvalTrait {
         'INSTRUCTIONS' => var_export($instructions, TRUE),
         'HISTORY' => var_export((string) $history_length, TRUE),
         'ALLOW_HISTORY' => var_export($allow_history, TRUE),
+        'ROLES' => var_export($roles, TRUE),
+        'CONFIGURATION' => var_export($configuration, TRUE),
       ]));
   }
 

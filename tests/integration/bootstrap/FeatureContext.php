@@ -54,6 +54,13 @@ class FeatureContext implements Context {
   protected array $echo = [];
 
   /**
+   * The visitor identity a "current visitor is …" step recorded, for user-context.
+   *
+   * @var array{name: string, roles: list<string>}|null
+   */
+  protected ?array $visitor = NULL;
+
+  /**
    * The transcript the runner loaded on the last "conversation is loaded" step.
    *
    * @var list<array{role: string, message: string}>
@@ -738,6 +745,109 @@ class FeatureContext implements Context {
     Assert::assertNotNull($workflow, "No fixture named '$agent'.");
     $this->createN8nAssistant($id, $workflow['id'], $instructions);
     $this->createdAssistants[] = $id;
+  }
+
+  // ── User context (visitor identity + the assistant's access list) ────────────
+  // Shared Given, used by user-context, agents-metadata and page-context — defined
+  // once here (do NOT redefine it elsewhere, or the suite double-defines and fails).
+
+  /**
+   * Step: A bare assistant with no extra Drupal detail.
+   *
+   * @Given an assistant :id backed by the :agent agent
+   */
+  public function anAssistantBackedByAgent(string $id, string $agent): void {
+    $this->createAssistantForFixture($id, $agent, '');
+  }
+
+  /**
+   * Step: An assistant that opts in to forwarding the visitor's identity.
+   *
+   * @Given an assistant :id backed by the :agent agent with user context enabled
+   */
+  public function anAssistantWithUserContext(string $id, string $agent): void {
+    $workflow = $this->n8nWorkflowByName($agent);
+    Assert::assertNotNull($workflow, "No fixture named '$agent'.");
+    $this->createN8nAssistant($id, $workflow['id'], '', 2, 'session_one_thread', [], ['forward_user_context' => TRUE]);
+    $this->createdAssistants[] = $id;
+  }
+
+  /**
+   * Step: An assistant restricted to a single role.
+   *
+   * @Given an assistant :id backed by the :agent agent restricted to role :role
+   */
+  public function anAssistantRestrictedToRole(string $id, string $agent, string $role): void {
+    $workflow = $this->n8nWorkflowByName($agent);
+    Assert::assertNotNull($workflow, "No fixture named '$agent'.");
+    $this->createN8nAssistant($id, $workflow['id'], '', 2, 'session_one_thread', [$role => $role]);
+    $this->createdAssistants[] = $id;
+  }
+
+  /**
+   * Step: Records the intended visitor identity (two roles).
+   *
+   * @Given the current visitor is :name with roles :first and :second
+   */
+  public function theCurrentVisitorWithTwoRoles(string $name, string $first, string $second): void {
+    $this->visitor = ['name' => $name, 'roles' => [$first, $second]];
+  }
+
+  /**
+   * Step: Records the intended visitor identity (one role).
+   *
+   * @Given the current visitor is :name with roles :role
+   */
+  public function theCurrentVisitorWithOneRole(string $name, string $role): void {
+    $this->visitor = ['name' => $name, 'roles' => [$role]];
+  }
+
+  /**
+   * Step: N8n received the visitor's username.
+   *
+   * @Then n8n received the user :user
+   */
+  public function n8nReceivedTheUser(string $user): void {
+    Assert::assertSame($user, $this->echo['metadata']['user'] ?? NULL, json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * Step: N8n received the visitor's roles as a list.
+   *
+   * @Then n8n received the user roles :first and :second
+   */
+  public function n8nReceivedTheUserRoles(string $first, string $second): void {
+    $got = $this->echo['metadata']['user_roles'] ?? [];
+    Assert::assertContains($first, $got, json_encode($this->echo['metadata'] ?? []));
+    Assert::assertContains($second, $got, json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * Step: N8n received no username — the opt-in was off.
+   *
+   * @Then n8n received no user from Drupal
+   */
+  public function n8nReceivedNoUser(): void {
+    Assert::assertArrayNotHasKey('user', $this->echo['metadata'] ?? [], json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * Step: N8n received no visitor roles — the opt-in was off.
+   *
+   * @Then n8n received no user roles from Drupal
+   */
+  public function n8nReceivedNoUserRoles(): void {
+    Assert::assertArrayNotHasKey('user_roles', $this->echo['metadata'] ?? [], json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * Step: N8n received the assistant's own allowed roles (context, not a gate).
+   *
+   * @Then n8n received the allowed roles :role
+   */
+  public function n8nReceivedTheAllowedRoles(string $role): void {
+    $got = $this->echo['metadata']['allowed_roles'] ?? [];
+    Assert::assertContains($role, $got, 'allowed_roles should carry the assistant restriction: ' . json_encode($this->echo['metadata'] ?? []));
   }
 
   // ── Session from n8n memory ──────────────────────────────────────────────────

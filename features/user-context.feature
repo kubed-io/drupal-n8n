@@ -28,6 +28,10 @@ Feature: The message can carry who is asking
     And the site tag is set to "mysite"
 
   # The base case: with user context on, the username and the role list arrive.
+  # @todo Goes live once the harness can drive the runner AS a created visitor
+  # (account switch + role creation). The metadata logic itself — opt-in gating and
+  # user_roles as a list — is proven in N8nUserContextTest.
+  @todo
   Scenario: User context forwards the visitor's name and roles
     Given an assistant "Helper" backed by the "Echo Agent" agent with user context enabled
     And the current visitor is "jdoe" with roles "authenticated" and "content_editor"
