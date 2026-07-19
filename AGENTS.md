@@ -31,7 +31,7 @@ link before you act on it.
 | Settings that do nothing | The assistant form shows prompt/history/tools fields that are **inert** under n8n. This surprises everyone. | [README § settings that intentionally do nothing](README.md#settings-that-intentionally-do-nothing) |
 | What ships | `n8n` (connection) + `ai_provider_n8n` (the headline). | [README § modules in this repo](README.md#modules-in-this-repo) |
 | What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction, not a tool bridge — MCP owns tools in both directions. | [README § not this module](README.md#not-this-module) |
-| Where the work stands | The **core loop is proven live** — connection, discovery, chat, session bridge. Left: hardening, tests, tag-sync. | [saga Ch2](saga/Chapter_2_The_Drive.md) |
+| Where the work stands | The **core loop is proven live** — connection, discovery, chat, session bridge, signature. Next leg **scouted, not driven**: agents passthrough (Stop 8), extended signature (Stop 4), the shareable template (Stop 9). | [saga Ch2 §1.6](saga/Chapter_2_The_Drive.md) |
 | How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [CONTRIBUTING § the spec comes first](CONTRIBUTING.md#the-spec-comes-first--and-the-readme-comes-before-the-spec) |
 
 ---
@@ -44,10 +44,19 @@ link before you act on it.
 2. **Read [saga Ch2 §1](saga/Chapter_2_The_Drive.md) before researching anything
    about Drupal AI or the n8n chat contract.** It is *verified ground truth* with
    file:line citations and live-probe receipts, and it supersedes Chapter 1 where
-   they disagree. Re-deriving it wastes a session.
+   they disagree. **§1.6 is the next leg** (agents passthrough, extended
+   signature, the template). Re-deriving any of it wastes a session.
 3. **Ask what stock mechanism already does this.** The answer is usually "Drupal or
    n8n already does" — see the "don't write it" table in saga §3.
 4. **Then write the smallest thing that satisfies the scenario.**
+
+**The ritual for anything new** (the saga's spine, and the order is the point):
+**plan it in the saga → research & _probe until it is falsifiable, never assert
+from memory_ → README prose → `.feature` with the base case + a few _likely_
+edges → code on a PR, tightening scenarios as the refactor loop surfaces the real
+edges.** Two failure modes to refuse: skipping straight to code, and guessing an
+exhaustive edge matrix up front (the guessed edges are the wrong ones). A weird
+feature not built beats a weird feature built — kill ideas at the prose stage.
 
 ---
 

@@ -269,6 +269,55 @@ AJAX-gated). One transcript instead of two, for the price of a subclass.
 road resumes, it's §4: error mapping and discovery caching are the nearest
 polish; the horizon (webform, tools via MCP, the rest) waits on Dr K.
 
+**2026-07-19 — scouting the next leg: the metadata channel grows up.** Dr K
+opened the next stops not with code but with a thesis to pressure-test — the
+Drupal signature is the module's soul, and it should carry *more*, enough that
+one generic n8n agent driven entirely by Drupal's metadata is a first-class
+showcase. Three scouting reports, researched before a line is written; the hard
+receipts live in **§1.6**, the decisions here.
+
+- **"Agents Enabled" — a per-assistant tool loop that binds with zero
+  transformation.** The stock **"Agents to use"** checkboxes on the assistant
+  already store the selected agents in the companion agent's `tools`
+  (`ai_agents::ai_agent::<id>`); our provider reads them and forwards
+  `metadata.agents = ["aif_<id>", …]` — the exact tool ids n8n's MCP Client Tool
+  *Tools to Include* wants, no massaging (§1.6.1, pinned on the live pod).
+  **Decision — reuse that stock field** (an earlier draft wanted a separate one;
+  Dr K was right to reject that): the selection is inert as Drupal execution
+  because we never emit a tool call, so the §1.1a one-`chat()`-call passthrough
+  holds, and n8n does the real tool-calling over MCP. Emit **`aif_<id>`** — the
+  MCP mirror of the FunctionCall plugin Drupal calls natively when the box is
+  checked; `aia_` is a separate prompt-calling surface (§1.6.1). **Stop 8.**
+- **The signature grows — user, roles, path, entity — in two feasibility tiers**
+  (§1.6.2). *Free:* `user` and `user_roles` (the **visitor's** roles) come from
+  `\Drupal::currentUser()` in the same request — and to Dr K's question directly,
+  **a Drupal user always has a *list* of roles** (e.g. `authenticated`, `editor`),
+  so `user_roles` is an array by nature; both are PII, so **opt-in, default off**.
+  Distinct from the assistant's **`allowed_roles`** (its native access list —
+  Drupal has *already* gated on it before n8n sees the message, so it forwards as
+  informational context only, never as a gate). *Context:* `path` and the page
+  `entity` — and the bridge turned out clean: the upstream
+  **`AiAssistantPassContextToAgentEvent`** hands our subscriber the block's
+  `current_route` right before `chat()`, so no core patch (§1.6.2). **On "does
+  every page have an id?" — no:** node/term/user routes resolve to one entity,
+  listings/views/front/admin to none, so we forward `entity: {type, id}` only when
+  the route *is* a single content entity (Dr K's "I'm on a blog post → read that
+  post over MCP", silent on a blog *listing*). Folds into **Stop 4**.
+- **The "Drupal Assistant" template — distribution, and the showcase for all of
+  it.** A top-level `workflow.json` (agent **"Drupal Assistant"**): OpenAI model +
+  Postgres memory, window from `metadata.context_window`, systemMessage weaving
+  `metadata.instructions`, and a Drupal MCP tool whose *Tools to Include* is
+  `={{ $json.metadata.agents }}` — the whole signature made visible. The MCP tool
+  config is already proven by the *Web Design Agent* workflow (§1.6.3); **Kubed
+  Assistant gains that tool** so the live smoke test drives the full loop. The
+  README must say both things: the template is a **starting point** to bend to
+  your own model/memory/tools, **and** the metadata is entirely **optional** — a
+  zero-detail assistant on any agent that ignores it still works. Ceiling and
+  floor. **Stop 9.**
+
+Scouted, not driven. README and `.feature` work waits for Dr K to bless the
+scout — and even then, base cases only; the refactor loop finds the edges.
+
 ---
 
 ## Where we start — 2026-07-15
@@ -858,6 +907,151 @@ outcome is either "document it in the README" or "now we know why we build."**
 > then Webform's stock Remote Post handler plus a URL may be the entire honest
 > answer. **Dr K's call.**
 
+### 1.6 The next leg's ground truth — verified 2026-07-19
+
+Durable findings behind the 07-19 scout. Same rule as the rest of §1: proven,
+don't re-discover. (Site MCP server confirmed live this session:
+`general_info` → `Kubed, 11.4.4`.)
+
+#### 1.6.1 The agents passthrough — pinned on the live pod, 2026-07-19
+
+Probed end to end on the live Drupal (`drupal-76447d8d8-79qpd`, `cloud` ns) —
+source, config dumps, and the MCP plugin manager's own `getTools()`. Every claim
+is from the pod, not inference; an earlier draft guessed the shape and got both
+the storage and the decision wrong.
+
+- **The n8n side accepts it by design.** MCP Client Tool
+  (`nodes-langchain.mcpClientTool` v1.4): *Tools to Include* = `include`
+  (`all`/`selected`/`except`); under `selected`, `includeTools` is a
+  `multiOptions` (default `[]`) documented *"Choose from the list, or specify IDs
+  using an **expression**."* → takes `={{ $json.metadata.agents }}` and resolves
+  to an **array of tool-name strings** at runtime. Proven-by-precedent that a sub-
+  node reads the signature: Kubed Assistant's Memory node already uses
+  `contextWindowLength = {{ ($json.metadata && $json.metadata.context_window) || 10 }}`.
+- **Where the selection lives.** The assistant form's **"Agents to use"**
+  checkboxes write to the assistant's **companion agent's `tools`** config (the
+  assistant owns that agent, §1.1). Live proof — the `kubed_helper` assistant's
+  companion agent `ai_agents.ai_agent.kubed_helper`:
+  ```
+  tools:
+    'ai_agents::ai_agent::content_type_agent_triage': true
+    'ai_agents::ai_agent::field_agent_triage': true
+    'ai_agents::ai_agent::storyteller': true
+    'ai_agents::ai_agent::taxonomy_agent_config': true
+  ```
+  A **selected agent** is stored as `ai_agents::ai_agent::<agent_id>`; the id is
+  the last `::` segment. (Plain function tools store as `ai_agent:<name>` — out of
+  scope for this feature.)
+- **The MCP tool-name mapping — pinned by dumping `plugin.manager.mcp`.** Each
+  `ai_agent` config entity is exposed by **two** MCP plugins, and — settling Dr K's
+  guess — the split is **not** assistant-vs-agent: both plugins enumerate
+  *agents*, and there is **no** assistant-derived tool at all (no `chef`
+  assistant exists; `aif_kubed_assistant` is the kubed_assistant *agent*).
+
+  | MCP plugin | id | Tool name for agent `chef` | Call shape |
+  |---|---|---|---|
+  | **AI Function Calling** | `aif` | **`aif_chef`** — `aif_` + agent id, **1:1** | agent as a function-call tool, structured input |
+  | **AI Agent Calling** | `aia` | `aia_chef__chef` — `aia_` + `<id>__<capability>` | invoke the agent with a free-text `{prompt}` |
+
+  Built by `McpPluginBase::generateToolId($pluginId, $toolName)` =
+  `$pluginId . '_' . sanitize($toolName)`, `sanitize` = lowercase + non-`[a-z0-9_]`
+  → `_`. Agent ids are already machine names, so **`aif_<agent_id>` is exact and
+  deterministic.** (Live `aif` set here: `aif_chef`, `aif_storyteller`,
+  `aif_content_type_agent_triage`, `aif_field_agent_triage`,
+  `aif_taxonomy_agent_config`, `aif_kubed_assistant`, `aif_kubed_helper`, …)
+- **Decision — reuse the stock "Agents to use" field, emit `aif_<agent_id>`**
+  (reverses the earlier over-cautious draft; Dr K was right). The provider reads
+  the companion agent's `tools`, keeps the `ai_agents::ai_agent::<id>` entries,
+  and forwards `metadata.agents = ["aif_<id>", …]` — the exact ids n8n's MCP node
+  wants: **zero transformation on the n8n side**, a trivial deterministic prefix
+  on ours.
+  - **`aif` vs `aia`, resolved by "what does Drupal do natively?"** (Dr K's
+    deciding-factor question.) When a real-LLM assistant checks off the `foo`
+    agent, Drupal's own agent loop calls the **in-process FunctionCall plugin**
+    `ai_agents::ai_agent::foo` — **neither MCP prefix; MCP is not in the native
+    path at all.** But `aif` is exactly the MCP re-exposure of those *same*
+    FunctionCall plugins (`AiFunctionCalling::getTools()` iterates
+    `FunctionCallPluginManager` and uses each function's **structured input
+    schema**), whereas `aia` is a *separate*, higher-level surface
+    (`AiAgentCalling` iterates the agent manager and wraps each agent as a generic
+    `{prompt}` call run through the default complex-json provider). The two don't
+    differ in the agent's logic — they differ in **calling convention**: `aif` =
+    structured tool (the native shape), `aia` = free-text prompt. So **`aif_<id>`
+    is the faithful mirror of the native mechanism** and is the recommendation.
+    Drupal side: resolve the stored `ai_agents::ai_agent::<id>` to its FunctionCall
+    plugin's name, prefix `aif_` (deterministic; verified `chef`→`aif_chef`); the
+    site must have the `aif` MCP plugin enabled.
+  - **The "ship no prefix, let the n8n editor pick" idea is dead** — n8n's
+    `includeTools` matches the *full* tool id, so a bare `foo` includes nothing,
+    and adding the prefix in an n8n expression is transformation on the n8n side,
+    breaking the promise. We ship the full `aif_<id>`.
+  - **The passthrough survives — the old objection was the wrong worry.**
+    Selecting agents puts tools on the companion agent, but
+    `AgentRunner::runAsAgent()` → `determineSolvability()` calls our `chat()`
+    **once** and terminates on a response carrying no tool calls (§1.1a). We
+    decline `ChatTools` and always return plain text, so we never emit a tool
+    call, the tools stay **inert as Drupal execution**, and it is still one
+    `chat()`. n8n does the real tool-calling over MCP. One confirming probe
+    (tools-attached companion + spy provider) is owed, but the terminal logic is
+    response-based, so the risk is low.
+
+#### 1.6.2 The extended signature, sorted by where the fact lives
+
+Key names locked with Dr K: **`user_roles`** (the visitor's) and
+**`allowed_roles`** (the assistant's), never a bare `roles`.
+
+- **Free tier — same request, no block, no event.** Read in `chat()`:
+  - `user` — the current username, from `\Drupal::currentUser()`.
+  - `user_roles` — **the visitor's** roles, also from `currentUser()`. **A Drupal
+    user always carries a *list* of roles**, so this is an array, never a scalar.
+    *Who is talking.*
+  - `allowed_roles` — **the assistant's** own Roles access list (the
+    `ai_assistant` entity's `roles` map, which the provider already loads). Dumped
+    live on `kubed_assistant`: `roles: {anonymous, authenticated, content_editor,
+    administrator}`. Drupal's native access gate has **already** confirmed the
+    visitor holds one of these before n8n sees the message, so it **gates nothing
+    on the n8n side** — pure informational context, distinct from `user_roles` by
+    name on purpose.
+  `user`/`user_roles` are PII → **opt-in, default off, README note.**
+  `allowed_roles` is assistant config, not user data.
+- **Context tier — `path` and `entity`, and the bridge is a real upstream event,
+  not a guess (07-19 pod finding, supersedes the §1.3 "gap").** The block posts
+  only `contexts: {current_route: <path>}` (`DeepChatFormBlock.php:699`, the
+  embedding page's path). That context flows: `DeepChatApi::setContext()` →
+  `AiAssistantApiRunner::getContext()` → `AgentRunner::runAsAgent($…, $context)` →
+  **dispatches `AiAssistantPassContextToAgentEvent($agent, $context)` immediately
+  before `determineSolvability()` calls our `chat()`**
+  (`ai_assistant_api/src/Service/AgentRunner.php:103`). So the page context **is**
+  reachable: **our own event subscriber catches that event, stashes
+  `current_route` in a request-scoped service, and the provider reads it at
+  `chat()` in the same request** — no core patch, using the module's sanctioned
+  "pass context to the agent" hook. (Answers Dr K directly: *not* available by
+  default — the legacy path bakes context into the dropped system prompt, the
+  agent path only tags the thread key — but the event makes it clean. A `Referer`
+  read stays a cheap path-only fallback.)
+- **`entity: {type, id}` is derived server-side from `current_route`** (route
+  match → entity parameter) and is present **iff the route resolves to exactly one
+  content entity** (node / term / user), **absent** on listings, views, front, and
+  admin. Dr K's "I'm on a blog post → the agent reads that post over MCP," silent
+  on a blog *listing*. Rides the event bridge with `path`.
+- **What else the block could give:** today, only `current_route`. Richer per-page
+  facts (an explicit entity ref, a view id) would mean enriching the block's
+  posted context via `hook_deepchat_settings` — a later, opt-in extension, and
+  *not* needed for `path`/`entity`, which derive from the path alone. **Caching
+  caveat to verify:** the posted `current_route` must vary per page (the block
+  needs a `url`/`route` cache context) or a site-wide cached block could post a
+  stale path.
+
+#### 1.6.3 The Drupal MCP tool config is already on this instance
+
+The *Web Design Agent* workflow (`DAWFtxI3eROFc3QD`, read 07-19) wires the exact
+node the template needs: `mcpClientTool` v1.2, `endpointUrl =
+https://<site>/mcp/post`, `authentication = headerAuth`, an `httpHeaderAuth`
+credential named "Drupal", `ai_tool` → the agent. Model = Anthropic, memory =
+Postgres Chat (window 10). That is the recipe the "Drupal Assistant" template
+copies and the README documents. **Kubed Assistant** (`Y3PcIp6oXHUqfUmA`, 4
+nodes) has **no** MCP tool yet — the smoke-test gap Stop 9 closes by adding it.
+
 ---
 
 ## 2. Dr K's brainstorm, answered point by point
@@ -1047,6 +1241,7 @@ owning assistant creation (Stop 6), and both are small.
 | **G — assistant generation** | **Collapsed to one column** by §1.0. We mint an **agent + assistant pair** (zero tools, `llm_provider: n8n`), and the stock click-path must degrade — same target either way, since the UI only makes agent-backed assistants. G3 (n8n as a code-defined `AiAgent` plugin) stays parked. |
 | **H — the tool path** *(new, Dr K)* | **Real, and probably already built by someone else** (§1.5b). `drupal/mcp_client` + an n8n **MCP Server Trigger** = named/typed/sync n8n tools in Drupal for **zero code** — Ch1 §4 repeating. Our deriver would be *worse* (webhooks declare no schema) and instance-level MCP's `execute_workflow` is **async + polling**. **Fork H is a probe then a README section**, not a build. Dr K's call. |
 | **I — is Execute Workflow Trigger reachable?** *(Dr K's question)* | **NO — closed, twice.** No REST execute endpoint exists (405, absent from the live OpenAPI spec); MCP's `execute_workflow` supports only Webhook/Chat/Form/Schedule triggers. Dr K called this before the research did. **Webhook or MCP are the only doors.** |
+| **J — agents passthrough** *(Dr K, 07-19)* | **Feasible, pinned on the live pod** (§1.6.1). The stock "Agents to use" selection (stored in the companion agent's `tools` as `ai_agents::ai_agent::<id>`) → `metadata.agents = ["aif_<id>", …]` → n8n MCP Client Tool *Tools to Include* expression, zero transformation on the n8n side. **Reuse the stock field** (reversed an earlier draft); the passthrough survives because we never emit a tool call → still one `chat()`. Emit **`aif_<id>`** — the MCP mirror of the FunctionCall plugin Drupal calls natively (§1.6.1). **Stop 8.** |
 
 ---
 
@@ -1120,14 +1315,20 @@ The binding feature — Drupal facts riding along to the agent.
   module version. Per-model config (via **our** `api_defaults.yml` surface,
   §2): custom key/values, toggles for user context (uid/roles/name — **opt-in,
   privacy note in README**), page context.
-- Page context (`current_route`) transport: whichever mechanism Stop 0's probe
-  blessed — candidates: (a) provider reads the shared runner service, (b) a
-  tiny upstream MR adding context to `$tags` (the community-friendly fix;
-  exporter issue shows the initiative takes these), (c) our own
-  `hook_deepchat_settings` additionalBodyProps + a request-scoped service.
-- README teaches the n8n side: `$json.metadata.drupal_route` in one screenshot.
+- **The extended signature (§1.6.2).** *Free* (same request, in `chat()`): `user`,
+  `user_roles` (the **visitor's** roles, always a list) from
+  `\Drupal::currentUser()` — opt-in, default off, PII note — plus the assistant's
+  `allowed_roles` (informational; Drupal already gated on it). *Context:* `path`
+  and `entity: {type, id}`, the latter only when the route resolves to a single
+  content entity. Base cases; the refactor loop finds the edges.
+- **Page-context transport is settled** (07-19, §1.6.2): the upstream
+  **`AiAssistantPassContextToAgentEvent`** hands our subscriber the block's
+  `current_route` just before `chat()` — stash it request-scoped, read it in the
+  provider, no core patch. (A `Referer` read stays a path-only fallback.)
+- README teaches the n8n side: `$json.metadata.path` / `$json.metadata.entity`
+  in one screenshot.
 - Exit: echo-agent asserts exact metadata payload in CI; a live agent
-  demonstrably branches on `drupal_route`.
+  demonstrably branches on `path` and reads the current `entity` over MCP.
 
 ### ~~Stop 5 — Rolling the windows down *(streaming)*~~ — **STRUCK 2026-07-15**
 Struck by §1.0 + §1.3a: streaming cannot reach an agent-backed assistant, and
@@ -1190,6 +1391,52 @@ written** — the best possible outcome for a stop.
   whole answer.
 - Exit: a written verdict on `mcp_client`, backed by a real attempt — not an
   opinion.
+
+### Stop 8 — Agents Enabled *(the per-assistant tool loop)*
+The signature learns to carry **capability**, not just context. Scouted and
+pinned on the live pod 07-19 (§1.6.1).
+- Read the assistant's stock **"Agents to use"** selection from the companion
+  agent's `tools` (`ai_agents::ai_agent::<id>` entries), map to
+  `metadata.agents = ["aif_<id>", …]`, forward it. **Array of MCP tool ids**, the
+  exact shape n8n's MCP Client Tool *Tools to Include* expression wants — zero
+  transformation on the n8n side.
+- **Reuse the stock field; leave the companion agent as-is.** The selection is
+  inert as Drupal execution (we never emit a tool call → one `chat()`, §1.1a); n8n
+  does the real tool-calling over MCP. One confirming probe (tools-attached
+  companion + spy provider) before we lean on it.
+- **Emit `aif_<id>`** — the faithful MCP mirror of the FunctionCall plugin Drupal
+  calls natively when the box is checked (§1.6.1); `aia_` is a separate
+  prompt-calling surface. Requires the `aif` MCP plugin enabled (document it).
+- README teaches the n8n side: MCP Client Tool → *Tools to Include* = *selected* →
+  `={{ $json.metadata.agents }}`; empty selection ⇒ key absent ⇒ the workflow's
+  own default (all/none) stands. Security note — exposing agents to n8n widens
+  what a workflow can do to the site over MCP.
+- Exit: inspection asserts `metadata.agents` exactly in CI; on the live cluster,
+  an assistant that selects one Drupal agent makes the n8n agent call **only** that
+  one back through MCP.
+
+### Stop 9 — The Drupal Assistant template *(distribution & showcase)*
+The stop that turns the whole signature into something you can share. Scouted
+07-19 (§1.6.3).
+- Top-level **`workflow.json`**, agent **"Drupal Assistant"**: Chat Trigger
+  (public) → Agent (**OpenAI** model) + **Postgres Chat Memory**
+  (`contextWindowLength` from `metadata.context_window`) + a **Drupal MCP Client
+  Tool** (*Tools to Include* = `={{ $json.metadata.agents }}`); systemMessage
+  weaves `metadata.instructions`. Every signature key visibly consumed — the
+  template's whole reason to exist is showing the metadata flowing from Drupal
+  into a working agent.
+- MCP tool config copied from *Web Design Agent* (§1.6.3); the README documents
+  the endpoint + header-auth credential recipe.
+- **Add the Drupal MCP tool to Kubed Assistant** so the defacto smoke agent
+  drives the full loop (§1.6.3).
+- README section: what the template is, that it's a **starting point** to bend
+  freely (your own model, memory, tools), and — equally loud — that the metadata
+  is **optional**: a zero-detail assistant on any agent that ignores it still
+  works (ceiling vs floor). Advertise the metadata channel as a **core reason**
+  the module exists: richer integration and live Drupal context for n8n agents.
+- Exit: import `workflow.json` into a clean n8n, tag it, and it answers as a
+  Drupal assistant driven entirely by the signature — instructions, window, and a
+  Drupal-agent tool call — with no hand-editing beyond credentials.
 
 ### The horizon *(scouted, parked, in Dr K's order whenever he calls them)*
 - **Streaming, upstream** — the `AgentRunner`/wrapper MR sketched in §1.3a.
@@ -1267,6 +1514,53 @@ written** — the best possible outcome for a stop.
 
 ## 7. Session log
 
+- **2026-07-19, later — the n8n side gets built ahead of the provider.** With the
+  three features' shapes decided, Dr K called for the n8n half now (still no
+  provider PHP). Done and validated with the n8n MCP:
+  - **Kubed Assistant** (the live smoke agent, `Y3PcIp6oXHUqfUmA`) gained a
+    **Drupal MCP** tool node — copied from *Web Design Agent*: `/mcp/post`,
+    header-auth cred "Drupal", `includeTools = {{ $json.metadata.agents || [] }}` —
+    and its system message now weaves every signature key (instructions, user,
+    user_roles, allowed_roles, path, entity). Validates clean.
+  - **The "Drupal Assistant" template** — top-level **`workflow.json`**, also
+    created live (`4S1VIUCD5PYWAKI9`, inactive) — the shareable base agent: Chat
+    Trigger → Agent(**OpenAI**) + **Postgres** memory (`context_window`) + Drupal
+    MCP tool (`metadata.agents`), credentials omitted for the importer. Validates
+    clean.
+  - **README** now leads with the metadata channel: the signature table grew
+    (agents, user, user_roles, allowed_roles, path, entity); three new feature
+    sections (*Lend your agent Drupal's own agents*, *Know who's asking*, *Know
+    what page they're on*); a *Drupal Assistant* template section (starting-point-
+    not-a-cage, metadata-is-optional); and the old "Agents to use = leave off"
+    footgun is reframed as a metadata offering (Drupal never runs it).
+  - **The signature specs were split one-concern-per-file** (Dr K's call):
+    `drupal-signature.feature` shrank to the always-on envelope (source/site/
+    assistant) plus an index of the rest; the instructions/personas scenarios moved
+    to `assistant-instructions.feature`; and the new keys got
+    `agents-metadata.feature`, `user-context.feature` (user + user_roles +
+    allowed_roles together), and `page-context.feature` — the latter the designated
+    tracker for Drupal's chat-context object (path today, new keys earn scenarios
+    there as Drupal grows it).
+  The provider code that fills these keys is the only thing left; it is Stops 4 &
+  8's job, and the specs plus the whole n8n side are now waiting on it.
+- **2026-07-19 — Dr K scouts the next leg; three stops mapped, then pinned on the
+  live pod.** Research-only. Confirmed the **Agents Enabled** binding is native
+  (MCP Client Tool *Tools to Include* takes an expression → array; our Memory node
+  already reads `metadata.*`), then went into the live Drupal pod
+  (`drupal-76447d8d8-79qpd`) and pinned the rest against source + plugin dumps:
+  the "Agents to use" selection is stored in the companion agent's `tools` as
+  `ai_agents::ai_agent::<id>`, and drupal/mcp exposes each **agent** (not
+  assistant — Dr K's guess corrected) two ways, `aif_<id>` (1:1, function calling)
+  and `aia_<id>__<cap>` (prompt calling). **Reversed an earlier draft:** reuse the
+  stock field and emit `aif_<id>`; the passthrough survives because we never emit
+  a tool call → still one `chat()`. Found the **page-context bridge** —
+  `AiAssistantPassContextToAgentEvent` (AgentRunner.php:103) delivers the block's
+  `current_route` to a subscriber right before `chat()`, so `path`/`entity` need
+  no core patch. Renamed the role keys **`user_roles`** / **`allowed_roles`**.
+  Mapped the extended signature into Stop 4, scoped the **"Drupal Assistant"
+  template** (Stop 9, *Web Design Agent* as the proven MCP-tool recipe, Kubed
+  Assistant as the smoke agent still missing the tool). Route gained Fork J and
+  Stops 8 & 9. Not one line of product code (live probes only).
 - **2026-07-17, later — the first stop gets its pavement.** Perspective check
   from Dr K first: **we are still at the first stop.** The drive is long; what
   this stop is for is formulating the plan — building the mental model of the
@@ -1440,3 +1734,124 @@ written** — the best possible outcome for a stop.
   trap. Dr K's kickoff brainstorm answered block by block (§2), forks updated,
   Fork G opened, route drafted (§4). Not one line of module code written.
   **Still only one sip owed, and it's Stop 2's.**
+
+---
+
+## 8. Work order — the extended-signature PR *(2026-07-19)*
+
+The implementation of the four new signature specs, on **ONE PR / branch**
+(`ch2-signature-context`). **Claude is PM** and owns git, the plan, and the
+integration seam; **Copilot** takes the two hard subsystems; **Claude** takes the
+one easy vertical. All work stays on this branch — no second PR.
+
+### The seam — how the verticals compose
+
+`N8nProvider::drupalSignature()` builds the envelope, then merges three
+per-concern contributions. Each is a helper; **fill only your own**:
+
+```php
+$signature += $this->userContextMetadata($agent_id);  // user-context.feature   — CLAUDE (done)
+$signature += $this->agentsMetadata($agent_id);        // agents-metadata.feature — COPILOT
+$signature += $this->pageContextMetadata();            // page-context.feature    — COPILOT
+```
+
+Each helper returns its keys, or `[]` when it has nothing to say — **absent-when-
+empty is the contract everywhere, and every `.feature` asserts it.** Edit only
+your own helper body and your own new files; the seam and the envelope are fixed.
+
+### Rules of the road (Claude is PM)
+- **One branch, sequential commits. Do NOT open another PR or branch.**
+- Per concern, touch all four: code → unit/kernel test → Behat step defs for its
+  `.feature` → a terse `CHANGELOG.md` line under `[Unreleased]`.
+- `composer run cs:fix` + `composer run stan` clean before you push; CI setup-php
+  pinned to the pod's **8.4** ([[nextcloud-n8n-ci-php-version]] discipline).
+- Ground truth is **§1.6** — do not re-derive it. If a contract looks wrong, leave
+  a note on the PR for the PM rather than changing the seam.
+
+### Open questions — answered 2026-07-19 (PM)
+
+Copilot raised three before cutting code; settled here so the board is unambiguous.
+
+**Q1 — where does the user-context opt-in live?** Per-assistant, via the provider
+**config surface** (`api_defaults.yml` → the assistant form's "Provider
+Configuration" block), NOT a site-wide connection setting and NOT a form-alter.
+Declare a boolean `forward_user_context` (default false) under `chat.configuration`
+so it renders on the assistant form and saves into the assistant's
+`llm_configuration`. **Read it back off the assistant entity's `llm_configuration`**
+— the same entity-load pattern the provider already uses for `context_window` and
+`instructions`, which is how per-assistant settings actually reach this provider
+(the agent path hands us the assistant id via tags, not a config bag). Matches the
+`.feature`'s per-assistant phrasing, uses §2's sanctioned home, and is finer than
+site-wide (forward identity on an internal assistant, not a public one).
+**Owner: Claude.**
+
+**Q2 — what counts as "restricted" for `allowed_roles`?** The assistant's `roles`
+map is `{role_id: 0|role_id}`, where `0` means the role is NOT enabled. On the live
+`kubed_assistant` all four are `0` → it is **unrestricted**, not "all four enabled"
+(that read was the trap). Rule: `allowed_roles = array_keys(array_filter((array)
+roles))` — the enabled subset — emitted **only when non-empty**, absent when the
+assistant is open to all. The envelope spec (`drupal-signature.feature`) drives the
+provider directly with no restricted assistant, so it correctly never sees the key.
+**Owner: Claude.**
+
+**Q3 — who owns the Behat step glue?** Each owner writes the step definitions for
+their own `.feature` (they exercise that owner's code): Claude → user-context;
+Copilot → page-context + agents-metadata. `FeatureContext.php` is shared but
+additive — keep step *text* distinct across features so no step is defined twice; a
+duplicate or accidentally-regex'd step text fails the suite while it still looks
+green ([[behat-parenthesized-steps]]). **Confirmed: yes, your features' steps are
+yours.**
+
+### CLAUDE — user context *(easy, isolated)*
+`features/user-context.feature`. `userContextMetadata($agent_id)`:
+- `allowed_roles`: the assistant's enabled roles —
+  `array_keys(array_filter((array) $assistant->get('roles')))` — emitted **only
+  when that subset is non-empty** (see Q2). Config, not PII; Drupal already gated
+  on it, so it is context, never a gate.
+- `user` + `user_roles`: from `current_user` (`getAccountName()`,
+  `array_values(getRoles())`); **opt-in per assistant** (see Q1), default off — PII.
+- Files: `N8nProvider` (helper + `current_user`), `api_defaults.yml` (the opt-in
+  field), a Kernel test, the Behat steps. **No connection-setting/schema change.**
+
+### COPILOT — task 1: page context *(hard)*
+`features/page-context.feature`. Ground truth §1.6.2.
+- A request-scoped state service (suggest `n8n.chat_context` / `N8nChatContext`)
+  holding the current route, populated by an **event subscriber** on
+  `Drupal\ai_assistant_api\Event\AiAssistantPassContextToAgentEvent`
+  (its `EVENT_NAME`; `getContext()` returns the block's `contexts`, carrying
+  `current_route`). Register both in a **new**
+  `modules/ai_provider_n8n/ai_provider_n8n.services.yml`.
+- `pageContextMetadata()` reads the service: emit `path` (the route), and
+  `entity: {type, id}` derived server-side from the path (router / route match)
+  **only when the route resolves to exactly one content entity** (node/term/user)
+  — absent on listings, views, front, admin.
+- The subscriber fires for **every** agent-backed assistant regardless of
+  provider; storing the route is harmless for non-n8n, so no provider check needed
+  in the subscriber.
+- DoD: unit/kernel proof that `path` is carried and `entity` is present only for a
+  single-entity route; the three scenarios wired in Behat. Verify the caching
+  caveat (§1.6.2 — `current_route` must vary per page); if the block over-caches,
+  document it rather than fighting it.
+
+### COPILOT — task 2: agents passthrough *(hard)*
+`features/agents-metadata.feature`. Ground truth §1.6.1.
+- Read the companion **agent's** `tools` (the `ai_agent` entity, `tools` key), keep
+  the `ai_agents::ai_agent::<id>` entries (a selected agent).
+- Resolve each to the MCP tool id the way `drupal/mcp` does, so it matches n8n
+  **byte-for-byte**: the FunctionCall plugin id **is** the stored key; instantiate
+  it via `plugin.manager.ai.function_calls`, take
+  `->normalize()->renderFunctionArray()['name']` (= the agent id for agents), then
+  `aif_` + sanitize(name), where sanitize = lowercase, non-`[a-z0-9_]` → `_`, trim
+  `_` (mirrors `McpPluginBase::sanitizeToolName`). Emit `agents: ["aif_<id>", …]`;
+  empty selection ⇒ key absent.
+- **Do NOT execute the agents and do NOT change the companion agent** — the §1.1a
+  one-call passthrough must hold.
+- DoD: unit test of the mapping (`chef` → `aif_chef`; two selected → two ids; none
+  → absent); a **canary test asserting exactly one provider call** for an
+  agent-with-tools; the three scenarios wired in Behat.
+
+### Integration (Claude, as pieces land)
+The seam already calls all three helpers, so nothing new to wire. As Copilot's
+commits land, Claude runs the full suite, keeps CI green, orders the CHANGELOG,
+and — once green **and** approved (one approval; an agent can't self-approve, so
+that's Dr K) — squash-merges to `main`.

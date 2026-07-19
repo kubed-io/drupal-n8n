@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Drupal signature carries the assistant's selected **Agents to use** as `metadata.agents` (MCP tool ids like `aif_<agent>`), ready to drop into an n8n MCP Client Tool's Tools to Include — so the assistant decides which of Drupal's own agents its n8n workflow may call back over MCP.
+- Opt-in visitor context: `metadata.user` and `metadata.user_roles` (a list), plus the assistant's own `metadata.allowed_roles`, so a workflow can tailor its answer to who is asking.
+- Page context: `metadata.path` — and `metadata.entity` (`{type, id}`) when the page is a single node, term, or user — so an agent can look up the very content the visitor is viewing.
+- A shareable **Drupal Assistant** template (`workflow.json`): a generic n8n agent — OpenAI chat model, Postgres memory, Drupal MCP tool — wired to read the whole signature, as a starting point you bend to your own needs.
 - A third Allow history mode, **Session (from n8n memory)**: instead of Drupal keeping its own transcript, the chat box is rehydrated live from the n8n agent's memory, so Drupal and n8n show one conversation — requires a retrieving memory node (e.g. Postgres Chat Memory) on the agent.
 - Session sizing from Drupal: an assistant's History context length rides along as `metadata.context_window`, so an n8n memory node can set its Context Window Length from Drupal — like `@n8n/chat`, sourced from Drupal's session instead of the browser's localStorage.
 
