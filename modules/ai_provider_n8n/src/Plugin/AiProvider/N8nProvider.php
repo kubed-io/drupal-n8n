@@ -284,33 +284,32 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   /**
    * The visitor's identity and the assistant's access list. See user-context.feature.
    *
-   * The allowed_roles key is the assistant's own enabled roles: Drupal has
-   * already enforced that gate before the message left, so it rides as context,
-   * never as a gate, and only when the assistant actually restricts. user and
-   * user_roles are personal data, so they travel only when this assistant opts
-   * in via forward_user_context (default off). Every key is absent when it has
-   * nothing to say.
+   * One opt-in — forward_user_context, default off — controls the whole "who is
+   * asking" block, because it is all personal or access data: the visitor's name
+   * and roles, and the roles the assistant itself is limited to. With the opt-in
+   * off, none of it travels. With it on, all three keys are present together, and
+   * allowed_roles is ALWAYS an array — the assistant's enabled roles, or an empty
+   * list when it is open to everyone — so a workflow can read it without first
+   * checking whether the key exists. Drupal has already enforced the access gate
+   * before the message left, so allowed_roles rides as context, never as a gate.
    */
   protected function userContextMetadata(string $agent_id): array {
     $assistant = $this->loadEntity('ai_assistant', $agent_id);
     if (!$assistant) {
       return [];
     }
-
-    $meta = [];
-    // The enabled roles only — a role disabled in the map is a falsy value.
-    $allowed = array_keys(array_filter((array) $assistant->get('roles')));
-    if ($allowed) {
-      $meta['allowed_roles'] = $allowed;
-    }
-
     $configuration = (array) $assistant->get('llm_configuration');
-    if (!empty($configuration['forward_user_context'])) {
-      $meta['user'] = $this->currentUser->getAccountName();
-      $meta['user_roles'] = array_values($this->currentUser->getRoles());
+    if (empty($configuration['forward_user_context'])) {
+      return [];
     }
 
-    return $meta;
+    return [
+      'user' => $this->currentUser->getAccountName(),
+      'user_roles' => array_values($this->currentUser->getRoles()),
+      // The enabled roles only — a role disabled in the map is a falsy value —
+      // or [] when the assistant is open to everyone.
+      'allowed_roles' => array_values(array_keys(array_filter((array) $assistant->get('roles')))),
+    ];
   }
 
   /**

@@ -188,7 +188,7 @@ The conversation your agent sees carries exactly one thing: the visitor's newest
 | `agents` | the Drupal **agents** this assistant may use, as MCP tool ids — ready to drop into an MCP Client Tool's *Tools to Include* (see [Lend your agent Drupal's own agents](#lend-your-agent-drupals-own-agents)) |
 | `user` | the current visitor's username — **opt-in** |
 | `user_roles` | the visitor's Drupal roles, as a **list** — **opt-in** |
-| `allowed_roles` | the roles this assistant permits; Drupal has already enforced access before the message left, so this is context, not a gate |
+| `allowed_roles` | the roles this assistant permits, as a **list** (empty when it's open to everyone) — travels with the same **opt-in** as `user`; Drupal has already enforced access before the message left, so this is context, not a gate |
 | `path` | the page the chat box is on, e.g. `/about` or `/user/1` (see [Know what page they're on](#know-what-page-theyre-on)) |
 | `entity` | that page's content as `{type, id}` when the page *is* a single node, term, or user — absent on listings and views |
 
@@ -214,9 +214,11 @@ This is the mirror of [Drupal answers back](#drupal-answers-back): there, your a
 
 ### Know who's asking
 
-Switch on user context and every message carries the visitor's `user` name and `user_roles` — a **list**, because a Drupal user holds several roles at once. Your agent can greet an editor differently from an anonymous visitor, or decline a request politely when the roles don't fit. It's **opt-in**: a username is personal data, and forwarding it to n8n should be a choice, not a default.
+One switch, **Forward visitor identity to n8n**, turns on the whole "who is asking" block, because it's all personal or access data. It's **opt-in**, off by default: a username is personal data, and sending it should be a choice.
 
-Beside them travels `allowed_roles` — the roles the assistant itself permits. Drupal has *already* enforced that gate before the message left, so this one is purely informational: log it, branch on it, or ignore it.
+Flip it on and every message carries three keys together: the visitor's `user` name and `user_roles` — a **list**, because a Drupal user holds several roles at once — and the assistant's own `allowed_roles`, the roles it's limited to. Your agent can greet an editor differently from an anonymous visitor, or decline a request politely when the roles don't fit.
+
+`allowed_roles` is **always a list** under the switch — the assistant's roles when it restricts, or an empty list when it's open to everyone — so a workflow can read it without checking whether the key exists. And it's context, never a gate: Drupal has *already* enforced who may use the assistant before the message left, so a workflow can log it or branch on it, but it changes nothing on the n8n side.
 
 📋 spec: [`features/user-context.feature`](features/user-context.feature)
 
