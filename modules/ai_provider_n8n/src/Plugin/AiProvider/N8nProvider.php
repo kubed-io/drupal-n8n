@@ -10,6 +10,7 @@ use Drupal\ai\OperationType\Chat\ChatInput;
 use Drupal\ai\OperationType\Chat\ChatInterface;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai\OperationType\Chat\ChatOutput;
+use Drupal\Core\Config\Entity\ConfigEntityInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\n8n\N8nClient;
@@ -264,6 +265,23 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   }
 
   /**
+   * Loads a config entity by id, or NULL when its type or the entity is absent.
+   *
+   * The ai_assistant and ai_agent types live in optional submodules, so every
+   * signature read must guard their existence before touching storage. This
+   * centralises that guard: a caller asks for an entity and gets NULL whenever
+   * there is nothing to read — the module missing, or the id not resolving —
+   * which is exactly the "absent when nothing to say" default the signature wants.
+   */
+  private function loadEntity(string $entity_type_id, string $id): ?ConfigEntityInterface {
+    if (!$this->entityTypeManager->hasDefinition($entity_type_id)) {
+      return NULL;
+    }
+    $entity = $this->entityTypeManager->getStorage($entity_type_id)->load($id);
+    return $entity instanceof ConfigEntityInterface ? $entity : NULL;
+  }
+
+  /**
    * The visitor's identity and the assistant's access list. See user-context.feature.
    *
    * The allowed_roles key is the assistant's own enabled roles: Drupal has
@@ -274,10 +292,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * nothing to say.
    */
   protected function userContextMetadata(string $agent_id): array {
-    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
-      return [];
-    }
-    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    $assistant = $this->loadEntity('ai_assistant', $agent_id);
     if (!$assistant) {
       return [];
     }
@@ -315,10 +330,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * @see features/agents-metadata.feature
    */
   protected function agentsMetadata(string $agent_id): array {
-    if (!$this->entityTypeManager->hasDefinition('ai_agent')) {
-      return [];
-    }
-    $agent = $this->entityTypeManager->getStorage('ai_agent')->load($agent_id);
+    $agent = $this->loadEntity('ai_agent', $agent_id);
     if (!$agent) {
       return [];
     }
@@ -449,10 +461,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * or unset means the key is absent.
    */
   protected function assistantContextWindow(string $agent_id): int {
-    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
-      return 0;
-    }
-    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    $assistant = $this->loadEntity('ai_assistant', $agent_id);
     return $assistant ? (int) $assistant->get('history_context_length') : 0;
   }
 
@@ -466,10 +475,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * call (for example the bare-transport path, which has only the tag).
    */
   protected function assistantName(string $agent_id): string {
-    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
-      return '';
-    }
-    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    $assistant = $this->loadEntity('ai_assistant', $agent_id);
     return $assistant ? trim((string) $assistant->label()) : '';
   }
 
@@ -484,10 +490,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * Empty means the admin gave none: the instructions key is then absent.
    */
   protected function assistantInstructions(string $agent_id): string {
-    if (!$this->entityTypeManager->hasDefinition('ai_agent')) {
-      return '';
-    }
-    $agent = $this->entityTypeManager->getStorage('ai_agent')->load($agent_id);
+    $agent = $this->loadEntity('ai_agent', $agent_id);
     return $agent ? trim((string) $agent->get('system_prompt')) : '';
   }
 
