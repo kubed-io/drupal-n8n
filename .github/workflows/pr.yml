@@ -36,6 +36,6 @@ jobs:
     # has to contribute something to it. A genuinely invisible change can still
     # add a one-liner under Changed.
     - name: Make sure Changelog is updated
-      uses: tarides/changelog-check-action@v3
+      uses: tarides/changelog-check-action@v4
       with:
         changelog: CHANGELOG.md
