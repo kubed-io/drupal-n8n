@@ -816,8 +816,8 @@ class FeatureContext implements Context {
   /**
    * Step: An assistant with the opt-in on and restricted to a single role.
    *
-   * allowed_roles rides the same opt-in as the visitor's identity, so a restricted
-   * assistant only forwards its roles when user context is enabled.
+   * The allowed_roles key rides the same opt-in as the visitor's identity, so a
+   * restricted assistant only forwards its roles when user context is enabled.
    *
    * @Given an assistant :id backed by the :agent agent with user context enabled restricted to role :role
    */
