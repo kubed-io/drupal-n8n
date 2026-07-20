@@ -185,14 +185,62 @@ The conversation your agent sees carries exactly one thing: the visitor's newest
 | `assistant` | which assistant is calling, so one agent serving several can tell them apart |
 | `instructions` | the assistant's own Instructions field, clean — **absent entirely** when the assistant has none, so a zero-detail assistant is a pure passthrough. Offered as a variable, never injected into the conversation |
 | `context_window` | the assistant's **History context length**, so a memory node can size its Context Window Length from Drupal — absent when zero or unset |
+| `agents` | the Drupal **agents** this assistant may use, as MCP tool ids — ready to drop into an MCP Client Tool's *Tools to Include* (see [Lend your agent Drupal's own agents](#lend-your-agent-drupals-own-agents)) |
+| `user` | the current visitor's username — **opt-in** |
+| `user_roles` | the visitor's Drupal roles, as a **list** — **opt-in** |
+| `allowed_roles` | the roles this assistant permits; Drupal has already enforced access before the message left, so this is context, not a gate |
+| `path` | the page the chat box is on, e.g. `/about` or `/user/1` (see [Know what page they're on](#know-what-page-theyre-on)) |
+| `entity` | that page's content as `{type, id}` when the page *is* a single node, term, or user — absent on listings and views |
 
-**Everything in the signature is optional context, never an order.** Your agent's own system prompt lives in n8n and always wins; a workflow that ignores the metadata behaves exactly as it does in n8n's own chat window. But a workflow that *reads* it gets the module's distinctive trick: `{{ $json.metadata.instructions }}` as a variable in the agent's prompt, and one generic agent becomes a different persona per assistant.
+**Everything in the signature is optional context, never an order.** Your agent's own system prompt lives in n8n and always wins; a workflow that ignores the metadata behaves exactly as it does in n8n's own chat window. But a workflow that *reads* it gets the module's distinctive trick: a live picture of who is asking, where they are, and what your site can do — and one generic agent becomes a different, site-aware persona per assistant.
+
+Everything below this line is that same signature, feature by feature.
+
+📋 envelope spec: [`features/drupal-signature.feature`](features/drupal-signature.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+
+### Lend your agent Drupal's own agents
+
+Drupal ships its own AI **agents** — for content, taxonomy, fields, and any you build — and the [MCP module](https://www.drupal.org/project/mcp) already exposes them as tools. This module lets you decide, **per assistant**, which of them your n8n agent may reach for: the assistant form's **Agents to use** checkboxes. Whatever you tick rides along as `metadata.agents`, already shaped as the exact MCP tool ids your site exposes (`aif_<agent>`) — so an **MCP Client Tool** node pointed at your site needs no glue. Set its *Tools to Include* to an expression:
+
+```
+={{ $json.metadata.agents }}
+```
+
+Now the **assistant** decides which Drupal agents its workflow may use, right on the assistant form, and two assistants on the same workflow can grant different ones. Nothing runs inside Drupal — your n8n agent does the calling, over MCP; the checkboxes just hand it the list. Tick none and the key is absent, and the workflow keeps whatever tools it already had.
+
+This is the mirror of [Drupal answers back](#drupal-answers-back): there, your agent *can* reach into Drupal; here, the assistant says *which parts* it may reach.
+
+📋 spec: [`features/agents-metadata.feature`](features/agents-metadata.feature)
+
+### Know who's asking
+
+Switch on user context and every message carries the visitor's `user` name and `user_roles` — a **list**, because a Drupal user holds several roles at once. Your agent can greet an editor differently from an anonymous visitor, or decline a request politely when the roles don't fit. It's **opt-in**: a username is personal data, and forwarding it to n8n should be a choice, not a default.
+
+Beside them travels `allowed_roles` — the roles the assistant itself permits. Drupal has *already* enforced that gate before the message left, so this one is purely informational: log it, branch on it, or ignore it.
+
+📋 spec: [`features/user-context.feature`](features/user-context.feature)
+
+### Know what page they're on
+
+The chat box knows which page it's sitting on — and now your agent does too. `metadata.path` carries that page's path (`/about`, `/blog/how-we-work`, `/user/1`), and when the page *is* a single piece of content, `metadata.entity` carries its `{type, id}`. So a visitor reading a blog post can ask "summarise this," and your agent — using the Drupal agents above — can fetch that exact node over MCP. On a listing or a view, where there's no single entity, `entity` is simply absent.
+
+These facts come from Drupal's **chat context** — a small bundle the chat block already sends with every message. Today that bundle carries the **page path and nothing else**; Drupal may grow it over time, and as it does, more page context can ride the signature. For now, `path` is the one to count on, with `entity` derived from it.
+
+📋 spec: [`features/page-context.feature`](features/page-context.feature)
 
 ### One agent, many personas
 
 That signature is what makes assistants **overrideable implementations** of one agent. Nothing on the assistant form has to be filled in, and its name doesn't have to match the workflow's — but each assistant that points at the same model sends its own signature. A formal persona on the support page, a playful one on the blog: same workflow, two assistants, `metadata.instructions` doing the differentiating. Or ignore all of it and run one assistant per agent — both are first-class.
 
-📋 spec: [`features/drupal-signature.feature`](features/drupal-signature.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+📋 spec: [`features/assistant-instructions.feature`](features/assistant-instructions.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+
+### Start from the Drupal Assistant template
+
+You don't have to build the n8n side from scratch. This repo ships a ready-to-import workflow, [`workflow.json`](workflow.json) — the **Drupal Assistant** — a generic n8n agent wired to read the *entire* signature: an OpenAI chat model, Postgres chat memory sized by `metadata.context_window`, a system prompt that folds in `metadata.instructions` and the visitor and page context, and a Drupal **MCP Client Tool** whose *Tools to Include* is `={{ $json.metadata.agents }}`. Import it, add your credentials and your site's MCP URL, tag it, and it answers as a Drupal-aware assistant driven entirely by what Drupal tells it.
+
+It's a **starting point, not a cage.** Swap the model, change the memory, add your own tools, rewrite the prompt — the only part worth keeping is how it consumes the metadata. Everything else is yours to bend to your own requirements.
+
+And it's **entirely optional.** The metadata is an offer, not a requirement: point an assistant at *any* n8n agent that ignores the signature and it still works — a zero-detail assistant is a plain passthrough. The template shows the ceiling; the passthrough is the floor; the integration you actually want is somewhere between, and the signature is how you dial it in.
 
 ### Not an agent brain (on purpose)
 
@@ -214,7 +262,7 @@ An **inactive workflow** is the most common one: n8n only serves a production ch
 
 Nothing in this repo implements the n8n → Drupal direction, because Drupal already ships it. Enable the [MCP module](https://www.drupal.org/project/mcp), then add an **MCP Client Tool** node to your agent pointing at `https://your-site/mcp/post`. Your agent can now read and write content, query JSON:API, run a RAG search over your site, and invoke Drupal's own AI agents — while it's answering in Drupal's chat box.
 
-That's the loop closing: Drupal asks n8n, n8n asks Drupal.
+That's the loop closing: Drupal asks n8n, n8n asks Drupal. And you can steer it **per assistant** — the [Agents to use](#lend-your-agent-drupals-own-agents) selection travels as `metadata.agents`, so the assistant decides which of Drupal's agents its workflow may call.
 
 ---
 
@@ -285,16 +333,23 @@ Configure at **Configuration → AI → AI Assistants** (`/admin/config/ai/ai-as
 
 ### Settings that intentionally do nothing
 
-The AI Assistant form is shared across all providers, so it shows fields that n8n, not Drupal, controls. These are **inert** — not broken, not "coming soon". n8n already owns what they configure:
+The AI Assistant form is shared across all providers, so it shows a field that n8n, not Drupal, controls. It's **inert** under n8n — not broken, not "coming soon". n8n already owns what it configures:
 
 | Field | Why it's ignored | Configure instead |
 |---|---|---|
-| **Agents to use / RAG** | The n8n agent does its own tool calling. Attaching Drupal tools here is the one misconfiguration that makes two brains fight — leave them off. | Tool nodes in n8n |
 | **LLM Configuration** (temperature, etc.) | The model lives in n8n. | The Chat Model node in n8n |
 
-Two fields that *look* inert are not: **Instructions** and **History context length** never touch the conversation, but they ride along as metadata (`metadata.instructions`, `metadata.context_window`) for your workflow to read if it wants — see [the Drupal signature](#every-message-carries-the-drupal-signature). Fill them in to extend or size a generic agent; leave them empty and nothing is forwarded.
+Several fields that *look* inert are not — they never touch the conversation, but they ride along as metadata for your workflow to read if it wants (see [the Drupal signature](#every-message-carries-the-drupal-signature)):
 
-> **Rule of thumb:** if a setting describes *how the agent thinks*, it belongs in n8n. If it describes *who can talk to it and where*, it belongs in Drupal. The two exceptions above are context Drupal *offers* — n8n decides whether to use them.
+| Field | Rides as | What a workflow can do with it |
+|---|---|---|
+| **Instructions** | `metadata.instructions` | extend a generic agent into a persona |
+| **History context length** | `metadata.context_window` | size an n8n memory node's window |
+| **Agents to use** | `metadata.agents` | list the Drupal agents the n8n agent may call over MCP |
+
+Fill them in and they're forwarded; leave them empty and the key is simply absent. **None of them makes Drupal *do* anything** — which is exactly why "Agents to use" is safe here: Drupal never runs those agents, it just hands the list to n8n, and your n8n agent does the calling.
+
+> **Rule of thumb:** if a setting describes *how the agent thinks*, it belongs in n8n. If it describes *who can talk to it, where, and what site context to carry along*, Drupal offers it as metadata — and n8n decides whether to read it.
 
 ---
 

@@ -89,7 +89,7 @@ trait DrupalEvalTrait {
    * llm_configuration or specific_error_messages becomes unloadable AND
    * undeletable through the entity API. See saga Chapter 2 §1.1c.
    */
-  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread'): void {
+  protected function createN8nAssistant(string $id, string $workflow_id, string $instructions, int $history_length = 2, string $allow_history = 'session_one_thread', array $roles = [], array $configuration = [], string $label = ''): void {
     $this->drupalEvalJson(strtr(<<<'PHP'
       $etm = \Drupal::entityTypeManager();
       foreach (['ai_assistant', 'ai_agent'] as $type) {
@@ -103,22 +103,25 @@ trait DrupalEvalTrait {
         'orchestration_agent' => TRUE, 'triage_agent' => FALSE, 'max_loops' => 3,
       ])->save();
       $etm->getStorage('ai_assistant')->create([
-        'id' => ID, 'label' => ID, 'description' => 'behat', 'ai_agent' => ID,
-        'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => [],
+        'id' => ID, 'label' => LABEL, 'description' => 'behat', 'ai_agent' => ID,
+        'llm_provider' => 'n8n', 'llm_model' => WORKFLOW, 'llm_configuration' => CONFIGURATION,
         'instructions' => INSTRUCTIONS, 'allow_history' => ALLOW_HISTORY,
         'history_context_length' => HISTORY, 'assistant_message' => 'hi',
         'no_results_message' => 'no results', 'error_message' => 'error: [error_message]',
-        'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => [],
+        'specific_error_messages' => [], 'actions_enabled' => [], 'roles' => ROLES,
         'system_prompt' => '', 'pre_action_prompt' => '', 'preprompt_instructions' => '',
         'use_function_calling' => FALSE,
       ])->save();
       echo json_encode(TRUE);
       PHP, [
         'ID' => var_export($id, TRUE),
+        'LABEL' => var_export($label !== '' ? $label : $id, TRUE),
         'WORKFLOW' => var_export($workflow_id, TRUE),
         'INSTRUCTIONS' => var_export($instructions, TRUE),
         'HISTORY' => var_export((string) $history_length, TRUE),
         'ALLOW_HISTORY' => var_export($allow_history, TRUE),
+        'ROLES' => var_export($roles, TRUE),
+        'CONFIGURATION' => var_export($configuration, TRUE),
       ]));
   }
 
@@ -153,18 +156,52 @@ trait DrupalEvalTrait {
    * companion agent, which calls our provider, which posts to n8n. Against the
    * Echo Agent fixture the reply text is the echoed request, so a caller can
    * read back exactly what n8n received.
+   *
+   * The chat runs as user 1 so a role-restricted assistant clears the runner's
+   * access gate — the harness stands in for a logged-in visitor who may use the
+   * assistant, which is the only path this suite exercises.
+   *
+   * The optional context is what the chat block would have sent — its
+   * current_route is the page the box is on. It rides on the runner exactly as
+   * the block sets it, so the page-context subscriber sees the same event it
+   * sees in production. An empty context is the no-page default.
+   *
+   * Returns a JSON object: reply is the model's text (the Echo Agent's echoed
+   * request), and provider_calls is how many times the provider posted to n8n
+   * during the turn — the reliable, in-request witness for the one-call
+   * passthrough, counted whether or not n8n persists the execution.
+   *
+   * @return string
+   *   JSON: {"reply": string, "provider_calls": int}.
    */
-  protected function chatThroughAssistant(string $id, string $message): string {
-    return (string) $this->drupalEvalJson(strtr(<<<'PHP'
-      $runner = \Drupal::service('ai_assistant_api.runner');
-      $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
-      $runner->setUserMessage(new \Drupal\ai_assistant_api\Data\UserMessage(MSG));
-      $runner->setThrowException(TRUE);
-      echo json_encode($runner->process()->getNormalized()->getText());
+  protected function chatThroughAssistant(string $id, string $message, array $context = []): string {
+    $result = $this->drupalEvalJson(strtr(<<<'PHP'
+      $chat_context = \Drupal::service('n8n.chat_context');
+      $chat_context->resetProviderCalls();
+      $switcher = \Drupal::service('account_switcher');
+      $admin = \Drupal::entityTypeManager()->getStorage('user')->load(1);
+      $switcher->switchTo($admin);
+      try {
+        $runner = \Drupal::service('ai_assistant_api.runner');
+        $runner->setAssistant(\Drupal::entityTypeManager()->getStorage('ai_assistant')->load(ID));
+        $runner->setUserMessage(new \Drupal\ai_assistant_api\Data\UserMessage(MSG));
+        $runner->setContext(CONTEXT);
+        $runner->setThrowException(TRUE);
+        $text = $runner->process()->getNormalized()->getText();
+      }
+      finally {
+        $switcher->switchBack();
+      }
+      echo json_encode([
+        'reply' => $text,
+        'provider_calls' => $chat_context->getProviderCallCount(),
+      ]);
       PHP, [
         'ID' => var_export($id, TRUE),
         'MSG' => var_export($message, TRUE),
+        'CONTEXT' => var_export($context, TRUE),
       ]));
+    return (string) json_encode($result);
   }
 
   /**
