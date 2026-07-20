@@ -15,4 +15,10 @@ chat:
     type: string
     default: ''
     required: true
-  configuration: {}
+  configuration:
+    forward_user_context:
+      label: 'Forward visitor identity to n8n'
+      description: 'Send the current user''s name and roles as metadata.user and metadata.user_roles, so a workflow can tailor its answer to who is asking. Off by default, because a username is personal data.'
+      type: boolean
+      default: false
+      required: false

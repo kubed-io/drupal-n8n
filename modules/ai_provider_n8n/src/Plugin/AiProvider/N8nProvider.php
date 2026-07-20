@@ -11,9 +11,11 @@ use Drupal\ai\OperationType\Chat\ChatInterface;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai\OperationType\Chat\ChatOutput;
 use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\n8n\N8nClient;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Exposes n8n chat agents to Drupal as AI models.
@@ -72,12 +74,44 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
   protected $entityTypeManager;
 
   /**
+   * The current user, for the opt-in visitor identity in the signature.
+   *
+   * @var \Drupal\Core\Session\AccountProxyInterface
+   */
+  protected $currentUser;
+
+  /**
+   * The AI function-call plugin manager, for resolving agents to MCP tool ids.
+   *
+   * @var \Drupal\Core\Plugin\DefaultPluginManager
+   */
+  protected $functionCallManager;
+
+  /**
+   * The router that resolves a page path to a route, without access checks.
+   *
+   * @var \Symfony\Component\Routing\Matcher\RequestMatcherInterface
+   */
+  protected $router;
+
+  /**
+   * The request-scoped store of the page the chat box is on.
+   *
+   * @var \Drupal\ai_provider_n8n\N8nChatContext
+   */
+  protected $chatContext;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $instance->client = $container->get('n8n.client');
     $instance->entityTypeManager = $container->get('entity_type.manager');
+    $instance->currentUser = $container->get('current_user');
+    $instance->functionCallManager = $container->get('plugin.manager.ai.function_calls');
+    $instance->router = $container->get('router.no_access_checks');
+    $instance->chatContext = $container->get('n8n.chat_context');
     return $instance;
   }
 
@@ -174,6 +208,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * instructions Drupal enforces.
    */
   public function chat(array|string|ChatInput $input, string $model_id, array $tags = []): ChatOutput {
+    $this->chatContext->recordProviderCall();
     $text = $this->client->chatSend(
       $model_id,
       $this->sessionIdFromTags($tags),
@@ -192,12 +227,14 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    *   source: always "drupal" — how a workflow tells Drupal traffic from n8n's
    *     own chat UI. site: the site name. assistant: the machine id of the
    *     assistant's companion agent, so one workflow serving several assistants
-   *     can tell its callers apart. instructions: the assistant's own
-   *     instructions, CLEAN — never present when the assistant has none, so a
-   *     zero-detail assistant is a pure passthrough. context_window: the
-   *     assistant's History context length, so a memory node can size its window
-   *     from Drupal — absent when unset. All offered as variables the workflow
-   *     may use, never injected into the conversation.
+   *     can tell its callers apart. assistant_name: the assistant's human name
+   *     (its Drupal label), so a workflow can greet or log by the name the admin
+   *     sees — absent when no assistant entity backs the call. instructions: the
+   *     assistant's own instructions, CLEAN — never present when the assistant
+   *     has none, so a zero-detail assistant is a pure passthrough. context_window:
+   *     the assistant's History context length, so a memory node can size its
+   *     window from Drupal — absent when unset. All offered as variables the
+   *     workflow may use, never injected into the conversation.
    */
   protected function drupalSignature(array $tags): array {
     $signature = [
@@ -206,15 +243,199 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
     ];
     if ($agent_id = $this->assistantIdFromTags($tags)) {
       $signature['assistant'] = $agent_id;
+      if ($name = $this->assistantName($agent_id)) {
+        $signature['assistant_name'] = $name;
+      }
       if ($instructions = $this->assistantInstructions($agent_id)) {
         $signature['instructions'] = $instructions;
       }
       if ($window = $this->assistantContextWindow($agent_id)) {
         $signature['context_window'] = $window;
       }
+      // Per-concern context, each with its own spec (see saga §8). A helper
+      // returns its keys or [] — absent-when-empty is the contract everywhere —
+      // so we merge with += and never overwrite the envelope.
+      $signature += $this->userContextMetadata($agent_id);
+      $signature += $this->agentsMetadata($agent_id);
     }
+    $signature += $this->pageContextMetadata();
 
     return $signature;
+  }
+
+  /**
+   * The visitor's identity and the assistant's access list. See user-context.feature.
+   *
+   * The allowed_roles key is the assistant's own enabled roles: Drupal has
+   * already enforced that gate before the message left, so it rides as context,
+   * never as a gate, and only when the assistant actually restricts. user and
+   * user_roles are personal data, so they travel only when this assistant opts
+   * in via forward_user_context (default off). Every key is absent when it has
+   * nothing to say.
+   */
+  protected function userContextMetadata(string $agent_id): array {
+    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
+      return [];
+    }
+    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    if (!$assistant) {
+      return [];
+    }
+
+    $meta = [];
+    // The enabled roles only — a role disabled in the map is a falsy value.
+    $allowed = array_keys(array_filter((array) $assistant->get('roles')));
+    if ($allowed) {
+      $meta['allowed_roles'] = $allowed;
+    }
+
+    $configuration = (array) $assistant->get('llm_configuration');
+    if (!empty($configuration['forward_user_context'])) {
+      $meta['user'] = $this->currentUser->getAccountName();
+      $meta['user_roles'] = array_values($this->currentUser->getRoles());
+    }
+
+    return $meta;
+  }
+
+  /**
+   * The Drupal agents this assistant may use, as MCP tool ids.
+   *
+   * The assistant's "Agents to use" selection is stored on its companion agent
+   * as tools keyed ai_agents::ai_agent::<id>. We keep the enabled agent entries
+   * and resolve each to the exact id n8n's MCP server would expose it under, so
+   * a workflow can drop metadata.agents straight into an MCP Client Tool node's
+   * "Tools to Include" and call those agents back over MCP with no glue.
+   *
+   * We NEVER run the agents here — the n8n agent is a passthrough that does its
+   * own tool calling. The selection travels as data, never as a tool call, so
+   * ticking agents cannot turn the one-call passthrough into two. Empty
+   * selection means the agents key is absent.
+   *
+   * @see features/agents-metadata.feature
+   */
+  protected function agentsMetadata(string $agent_id): array {
+    if (!$this->entityTypeManager->hasDefinition('ai_agent')) {
+      return [];
+    }
+    $agent = $this->entityTypeManager->getStorage('ai_agent')->load($agent_id);
+    if (!$agent) {
+      return [];
+    }
+    $agents = [];
+    foreach ((array) $agent->get('tools') as $plugin_id => $enabled) {
+      if (!$enabled || !str_starts_with((string) $plugin_id, 'ai_agents::ai_agent::')) {
+        continue;
+      }
+      if ($tool_id = $this->agentToolId((string) $plugin_id)) {
+        $agents[] = $tool_id;
+      }
+    }
+
+    return $agents ? ['agents' => $agents] : [];
+  }
+
+  /**
+   * The MCP tool id for one selected agent, resolved exactly as drupal/mcp does.
+   *
+   * The function-call plugin id IS the stored tools key. We instantiate it and
+   * take the name off its rendered function array — the same source drupal/mcp
+   * reads — then prefix aif_ and sanitize with the identical rules its
+   * McpPluginBase applies, so the id we emit is byte-for-byte the one n8n sees.
+   * An unknown or unbuildable plugin yields '' and is dropped.
+   */
+  protected function agentToolId(string $plugin_id): string {
+    if (!$this->functionCallManager->hasDefinition($plugin_id)) {
+      return '';
+    }
+    try {
+      $name = $this->functionCallManager->createInstance($plugin_id)
+        ->normalize()
+        ->renderFunctionArray()['name'] ?? '';
+    }
+    catch (\Throwable) {
+      return '';
+    }
+
+    return $name === '' ? '' : 'aif_' . $this->sanitizeToolName($name);
+  }
+
+  /**
+   * Sanitizes a tool name to n8n's id form, mirroring drupal/mcp exactly.
+   *
+   * Lowercase, non-[a-z0-9_] runs collapsed to a single underscore, trimmed of
+   * leading and trailing underscores, and prefixed with an underscore if it
+   * would otherwise start with a digit. This mirrors McpPluginBase so the id we
+   * hand n8n matches the one the MCP server publishes.
+   */
+  protected function sanitizeToolName(string $tool_name): string {
+    $name = strtolower($tool_name);
+    $name = preg_replace('/[^a-z0-9_]+/', '_', $name);
+    $name = trim($name, '_');
+    if (preg_match('/^[0-9]/', $name)) {
+      $name = '_' . $name;
+    }
+
+    return $name;
+  }
+
+  /**
+   * The page the chat box is on: path, and entity when the page is a single one.
+   *
+   * The path arrives out of band — ChatContextSubscriber stashed it from the
+   * assistant pipeline's context event earlier this same request, because the
+   * provider cannot see the page directly at chat() time. When that path
+   * resolves to exactly one content entity's canonical route, entity carries its
+   * {type, id}, derived server-side from the path — so an agent can look up the
+   * very node the visitor is reading, over MCP. On a listing, a view, the front
+   * page, or an admin route, no single entity owns the page and entity is absent.
+   * With no page context at all, the whole block is absent.
+   *
+   * @see \Drupal\ai_provider_n8n\EventSubscriber\ChatContextSubscriber
+   * @see features/page-context.feature
+   */
+  protected function pageContextMetadata(): array {
+    $path = $this->chatContext->getPath();
+    if ($path === NULL || $path === '') {
+      return [];
+    }
+    $meta = ['path' => $path];
+    if ($entity = $this->entityFromPath($path)) {
+      $meta['entity'] = $entity;
+    }
+
+    return $meta;
+  }
+
+  /**
+   * The single content entity a page path resolves to, or [] when there is none.
+   *
+   * Only a canonical single-entity route (entity.<type>.canonical, its entity
+   * upcast from the path) counts as "a page that IS one piece of content".
+   * Listings, views, the front page, admin routes and edit forms all fall
+   * through to []. The match runs without access checks — it is deriving a fact
+   * about the URL, not authorising the visitor — and any non-match is [].
+   */
+  protected function entityFromPath(string $path): array {
+    try {
+      $match = $this->router->matchRequest(Request::create($path));
+    }
+    catch (\Throwable) {
+      return [];
+    }
+    $route_name = $match['_route'] ?? '';
+    if (!preg_match('/^entity\.([a-z0-9_]+)\.canonical$/', $route_name, $captured)) {
+      return [];
+    }
+    $entity = $match[$captured[1]] ?? NULL;
+    if (!$entity instanceof ContentEntityInterface) {
+      return [];
+    }
+
+    return [
+      'type' => $entity->getEntityTypeId(),
+      'id' => (string) $entity->id(),
+    ];
   }
 
   /**
@@ -233,6 +454,23 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
     }
     $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
     return $assistant ? (int) $assistant->get('history_context_length') : 0;
+  }
+
+  /**
+   * The assistant's human name, the label the admin gave it in Drupal.
+   *
+   * The tag carries the agent id, which for a form-created assistant equals the
+   * assistant id, so we load the assistant entity and forward its label. This is
+   * the display name an admin sees, distinct from the machine id in `assistant` —
+   * a workflow can greet or log by it. Absent when no assistant entity backs the
+   * call (for example the bare-transport path, which has only the tag).
+   */
+  protected function assistantName(string $agent_id): string {
+    if (!$this->entityTypeManager->hasDefinition('ai_assistant')) {
+      return '';
+    }
+    $assistant = $this->entityTypeManager->getStorage('ai_assistant')->load($agent_id);
+    return $assistant ? trim((string) $assistant->label()) : '';
   }
 
   /**

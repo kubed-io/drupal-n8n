@@ -1,0 +1,15 @@
+# Services for the n8n provider.
+#
+# n8n.chat_context is a request-scoped holder for the page the chat box is on;
+# the container is rebuilt per request, so the value never leaks between visitors.
+# The subscriber fills it from the assistant pipeline's context event so the
+# provider can read the page back when it builds the Drupal signature.
+services:
+  n8n.chat_context:
+    class: Drupal\ai_provider_n8n\N8nChatContext
+  ai_provider_n8n.chat_context_subscriber:
+    class: Drupal\ai_provider_n8n\EventSubscriber\ChatContextSubscriber
+    arguments:
+    - '@n8n.chat_context'
+    tags:
+    - { name: event_subscriber }
