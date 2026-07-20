@@ -8,17 +8,15 @@
 # metadata.entity is absent.
 #
 # WHERE THE FACT COMES FROM. Unlike the visitor's identity, the page is NOT known to
-# the provider directly — when chat() runs it is handling the chat POST, not the
-# page. The page's path arrives through Drupal's chat context (the bundle the chat
-# block already sends) and is delivered to us by the AiAssistantPassContextToAgentEvent
-# just before the message goes out. entity is derived server-side from that path.
+# the provider directly — when chat() runs it is handling the chat POST, not the page.
+# The path arrives through Drupal's chat context, the bundle the chat block already
+# sends, handed to us by AiAssistantPassContextToAgentEvent just before the message
+# goes out; entity is then derived server-side from that path.
 #
-# THIS FEATURE TRACKS DRUPAL'S CHAT-CONTEXT OBJECT. Page facts come from the context
-# bundle the chat block sends, delivered to us by AiAssistantPassContextToAgentEvent.
-# Today that bundle carries the page path and NOTHING ELSE — so this feature covers
-# path and its derived entity, and invents nothing. It is the designated home for that
-# object: when Drupal grows the context upstream, new keys earn their scenarios here,
-# so this spec stays the honest record of what the injector actually carries.
+# THIS FEATURE IS THE HOME FOR THAT CHAT-CONTEXT OBJECT. Today the bundle carries the
+# page path and NOTHING ELSE, so this feature covers path and its derived entity and
+# invents nothing. When Drupal grows the context upstream, new keys earn their
+# scenarios here — keeping this spec the honest record of what the injector carries.
 #
 # The Echo Agent hands back everything it received, which is how the suite asserts
 # both what we sent and what we did NOT send.

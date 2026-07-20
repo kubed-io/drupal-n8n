@@ -31,7 +31,7 @@ link before you act on it.
 | Settings that do nothing | The assistant form shows prompt/history/tools fields that are **inert** under n8n. This surprises everyone. | [README § settings that intentionally do nothing](README.md#settings-that-intentionally-do-nothing) |
 | What ships | `n8n` (connection) + `ai_provider_n8n` (the headline). | [README § modules in this repo](README.md#modules-in-this-repo) |
 | What we deliberately are **not** | Not a widget, not a fork of `n8n_chat`, not an AI framework, not the n8n→Drupal direction, not a tool bridge — MCP owns tools in both directions. | [README § not this module](README.md#not-this-module) |
-| Where the work stands | The **core loop is proven live** — connection, discovery, chat, session bridge, signature. Next leg **scouted, not driven**: agents passthrough (Stop 8), extended signature (Stop 4), the shareable template (Stop 9). | [saga Ch2 §1.6](saga/Chapter_2_The_Drive.md) |
+| Where the work stands | The **core loop and the extended signature are live** — connection, discovery, chat, session bridge, and the full signature (instructions, context_window, agents, user/roles, page path+entity), plus the shareable template. Hardening and refactor ongoing. | [saga Ch2 §1.6, §8](saga/Chapter_2_The_Drive.md) |
 | How a feature becomes a feature | **README prose → due diligence → base case → few likely edges.** Never generate exhaustive scenario matrices. | [CONTRIBUTING § the spec comes first](CONTRIBUTING.md#the-spec-comes-first--and-the-readme-comes-before-the-spec) |
 
 ---
@@ -183,8 +183,9 @@ drush n8n:test
 form. The README also documents `n8n:models` and `n8n:chat` — not yet built; that file
 is the **specification**, so it describes the finished product. Do not cite those two as
 working. The provider's `chat()`, model discovery, the **site-tag filter**, and the
-**Drupal signature** ARE real as of Chapter 2, but live only in the working copy until
-released.
+base **Drupal signature** shipped in 0.1.1; the **extended signature** (agents,
+user/roles, page context) and the template are **merged to `main`**, awaiting the next
+release tag.
 
 **We do NOT generate assistants.** The old `n8n:sync` / `n8n:assistant` idea is
 dropped — turning a model into an assistant is the admin's design choice (one model can
