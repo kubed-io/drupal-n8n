@@ -29,25 +29,14 @@ use Drupal\Tests\UnitTestCase;
 class N8nUserContextTest extends UnitTestCase {
 
   /**
-   * A restricted assistant forwards its enabled roles; opt-in off sends no PII.
+   * With the opt-in off, nothing about the visitor or the roles travels.
+   *
+   * Even a role-restricted assistant stays silent — allowed_roles rides the same
+   * one opt-in as the visitor's identity, so off means off for the whole block.
    */
-  public function testRestrictedAssistantForwardsAllowedRolesOnly(): void {
+  public function testOptInOffForwardsNothing(): void {
     $meta = $this->userContext(
       roles: ['anonymous' => 0, 'authenticated' => 0, 'content_editor' => 'content_editor', 'administrator' => 0],
-      llmConfiguration: [],
-    );
-
-    $this->assertSame(['content_editor'], $meta['allowed_roles'] ?? NULL);
-    $this->assertArrayNotHasKey('user', $meta);
-    $this->assertArrayNotHasKey('user_roles', $meta);
-  }
-
-  /**
-   * An assistant open to everyone (no role enabled) forwards nothing here.
-   */
-  public function testUnrestrictedAssistantForwardsNoAllowedRoles(): void {
-    $meta = $this->userContext(
-      roles: ['anonymous' => 0, 'authenticated' => 0, 'content_editor' => 0, 'administrator' => 0],
       llmConfiguration: [],
     );
 
@@ -55,11 +44,30 @@ class N8nUserContextTest extends UnitTestCase {
   }
 
   /**
-   * With the opt-in on, the visitor's name and role list travel.
+   * With the opt-in on, an open assistant forwards an EMPTY allowed-roles list.
+   *
+   * The key is always present under the opt-in, so a workflow never has to guess
+   * whether it exists; an assistant open to everyone simply sends [].
    */
-  public function testOptInForwardsVisitorIdentity(): void {
+  public function testOptInOnOpenAssistantForwardsEmptyAllowedRoles(): void {
     $meta = $this->userContext(
-      roles: [],
+      roles: ['anonymous' => 0, 'authenticated' => 0, 'content_editor' => 0, 'administrator' => 0],
+      llmConfiguration: ['forward_user_context' => TRUE],
+      userName: 'jdoe',
+      userRoles: ['authenticated'],
+    );
+
+    $this->assertSame('jdoe', $meta['user'] ?? NULL);
+    $this->assertSame(['authenticated'], $meta['user_roles'] ?? NULL);
+    $this->assertSame([], $meta['allowed_roles'] ?? NULL);
+  }
+
+  /**
+   * With the opt-in on, all three keys travel: visitor, roles, and the restriction.
+   */
+  public function testOptInOnRestrictedForwardsAllThree(): void {
+    $meta = $this->userContext(
+      roles: ['anonymous' => 0, 'authenticated' => 0, 'content_editor' => 'content_editor', 'administrator' => 0],
       llmConfiguration: ['forward_user_context' => TRUE],
       userName: 'jdoe',
       userRoles: ['authenticated', 'content_editor'],
@@ -67,8 +75,10 @@ class N8nUserContextTest extends UnitTestCase {
 
     $this->assertSame('jdoe', $meta['user'] ?? NULL);
     $this->assertSame(['authenticated', 'content_editor'], $meta['user_roles'] ?? NULL);
+    $this->assertSame(['content_editor'], $meta['allowed_roles'] ?? NULL);
     // A user always carries a LIST of roles — never a scalar.
     $this->assertIsList($meta['user_roles']);
+    $this->assertIsList($meta['allowed_roles']);
   }
 
   /**

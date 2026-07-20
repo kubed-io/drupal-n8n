@@ -164,6 +164,30 @@ about it.
 
 ---
 
+## What the Drupal signature discloses to n8n
+
+Every Drupal-originated message carries a metadata signature (README, "Every message
+carries the Drupal signature"). It is worth knowing exactly what leaves Drupal:
+
+- **Always:** the site name, the assistant's machine id and label, and — when the
+  admin filled them in — the assistant's instructions and history length. This is
+  assistant *configuration*, not visitor data.
+- **The page, when the chat box is on a content route:** the path the box is on and,
+  for a single-content page, that entity's *type and id* — never its content, and only
+  for a page the visitor is already viewing.
+- **Visitor identity — opt-in, default OFF:** the current user's name and roles, plus
+  the assistant's allowed-roles list, travel ONLY when **Forward visitor identity to
+  n8n** is enabled on the assistant. Leave it off and no personal data crosses.
+- **Never:** the n8n API key, any Drupal secret, or the conversation history — only the
+  newest message travels, and the key is used server-side to list workflows, never sent
+  to the chat webhook.
+
+The signature is metadata a workflow MAY read; it changes nothing on the Drupal side.
+Your n8n instance is only as private as its chat webhook, which may be unauthenticated
+(see the connection settings) — so treat a public agent's metadata as public.
+
+---
+
 ## Session isolation
 
 Each conversation maps to an n8n session id derived from the assistant and the

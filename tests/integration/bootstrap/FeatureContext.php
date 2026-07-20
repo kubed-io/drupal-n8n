@@ -814,14 +814,17 @@ class FeatureContext implements Context {
   }
 
   /**
-   * Step: An assistant restricted to a single role.
+   * Step: An assistant with the opt-in on and restricted to a single role.
    *
-   * @Given an assistant :id backed by the :agent agent restricted to role :role
+   * The allowed_roles key rides the same opt-in as the visitor's identity, so a
+   * restricted assistant only forwards its roles when user context is enabled.
+   *
+   * @Given an assistant :id backed by the :agent agent with user context enabled restricted to role :role
    */
-  public function anAssistantRestrictedToRole(string $id, string $agent, string $role): void {
+  public function anAssistantWithUserContextRestricted(string $id, string $agent, string $role): void {
     $workflow = $this->n8nWorkflowByName($agent);
     Assert::assertNotNull($workflow, "No fixture named '$agent'.");
-    $this->createN8nAssistant($id, $workflow['id'], '', 2, 'session_one_thread', [$role => $role]);
+    $this->createN8nAssistant($id, $workflow['id'], '', 2, 'session_one_thread', [$role => $role], ['forward_user_context' => TRUE]);
     $this->createdAssistants[] = $id;
   }
 
@@ -902,6 +905,24 @@ class FeatureContext implements Context {
   public function n8nReceivedTheAllowedRoles(string $role): void {
     $got = $this->echo['metadata']['allowed_roles'] ?? [];
     Assert::assertContains($role, $got, 'allowed_roles should carry the assistant restriction: ' . json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * Step: N8n received an empty allowed-roles list — the assistant is open.
+   *
+   * @Then n8n received an empty allowed-roles list
+   */
+  public function n8nReceivedAnEmptyAllowedRolesList(): void {
+    Assert::assertSame([], $this->echo['metadata']['allowed_roles'] ?? NULL, 'An open assistant under the opt-in sends allowed_roles as []: ' . json_encode($this->echo['metadata'] ?? []));
+  }
+
+  /**
+   * Step: N8n received no allowed roles — the opt-in was off.
+   *
+   * @Then n8n received no allowed roles from Drupal
+   */
+  public function n8nReceivedNoAllowedRoles(): void {
+    Assert::assertArrayNotHasKey('allowed_roles', $this->echo['metadata'] ?? [], json_encode($this->echo['metadata'] ?? []));
   }
 
   // ── Agents passthrough (the assistant's "Agents to use" as MCP tool ids) ─────
