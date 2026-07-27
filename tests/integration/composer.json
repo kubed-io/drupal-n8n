@@ -4,7 +4,7 @@
   "license": "GPL-2.0-or-later",
   "require-dev": {
     "behat/behat": "^3.32",
-    "guzzlehttp/guzzle": "^7.9",
+    "guzzlehttp/guzzle": "^8.0",
     "phpunit/phpunit": "^11.5 || ^12 || ^13"
   },
   "config": {
