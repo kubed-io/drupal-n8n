@@ -453,10 +453,20 @@ The reasons are harness limitations, not design doubts.
 
 ## 13. Where the spec links point now
 
-The deleted files were referenced from **30 places** by their pre-`old/` paths
+The deleted files were referenced from **33 lines** by their pre-`old/` paths
 (`features/<name>.feature`), so those links were **already broken** before the
-deletion — they broke when the files were moved into `old/`. All 30 were
-repointed in the same PR that deleted them, so the baseline is clean.
+deletion — they broke when the files were moved into `old/`. All 33 were
+repointed in the same PR that deleted them, so the baseline is clean:
+
+| Where | Lines |
+|---|---|
+| `README.md` — the `📋 spec:` footers | 11 |
+| `AGENTS.md` | 4 |
+| `CONTRIBUTING.md` | 2 |
+| `SECURITY.md` | 2 |
+| Source `@see` docblocks | 8 |
+| Test `Spec:` headers | 5 |
+| `tests/integration/bin/preload-n8n.sh` | 1 |
 
 Two kinds of link now, because they promise different things:
 
