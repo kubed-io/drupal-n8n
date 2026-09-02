@@ -19,7 +19,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * non-zero — that is what lets an install script stop.
  *
  * @see SECURITY.md#secrets-policy — why set-key takes a Key entity's name
- * @see features/admin-connection.feature
+ * @see features/connection.feature
  *
  * @todo Phase 4 — a `--domain` option. Domain overrides NEVER apply in CLI
  *   (`drush --uri` does not populate the domain context), so these read and write

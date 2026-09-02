@@ -1874,3 +1874,26 @@ Branch `ch2-signature-context`, two commits pushed:
 
 PM (Claude) next: as agents + page-context tests land, run the full suite and
 drive CI to green before asking Dr K for the approval.
+
+---
+
+## 9. The feature files got rewritten — 2026-09-02
+
+`features/old/` is **gone**. Ten files, 692 lines, deleted — not ported.
+
+They were the wrong shape: this module has exactly **one** gesture (someone types
+a message and an answer comes back), and the old suite gave each *metadata key* a
+feature file and each *field* a scenario. `user-context.feature` was "the `user`
+key is present when the switch is on" — a serialisation assertion wearing a
+feature's clothes. The replacement is two files, `connection.feature` and
+`assistant.feature`, where the assistant definition is a `Given` table, one
+message is the `When`, and combinations are `Examples` rows.
+
+The contracts written in those files' comment headers were mostly **right**, and
+several were proven live. They are salvaged in full in
+**[Appendix A — The Glovebox](Appendix_A_The_Glovebox.md)**: what a model *is*
+(the chat trigger, not the workflow), the three qualifying gates, the session
+bridge and who owns the transcript, the signature rules, the `aif_<agent_id>`
+passthrough, the chat-context seam, the failure contract, what every test fixture
+proves, the `@todo` ledger with what each was blocked on, and the ~30 dangling
+spec links the deletion leaves behind.

@@ -84,10 +84,11 @@ belongs to us**:
 - **The Key module owns it.** We store a *reference* to a Key entity, never the
   secret. That's why it can live in a file, an env var, or a secrets manager.
 - **Never logged, never echoed.** The settings form does not render the raw key back
-  to the browser — guarded by
-  [`features/admin-connection.feature`](features/admin-connection.feature)
-  ("The API key is never echoed back to the browser"). Error paths log the n8n status
-  code, never the request headers.
+  to the browser. Error paths log the n8n status code, never the request headers.
+  **Not currently covered by a test** — the scenario needs a rendered page, which
+  the integration harness cannot serve; it is recorded as blocked in
+  [Appendix A §§1, 12](saga/Appendix_A_The_Glovebox.md). Review it by hand when
+  you touch the form.
 - **`drush n8n:set-key` takes a Key entity name, not a raw secret** — so a key never
   lands in shell history or a process list.
 - **CI masks it.** The integration suite mints a throwaway key against an ephemeral
@@ -164,6 +165,30 @@ about it.
 
 ---
 
+## What the Drupal signature discloses to n8n
+
+Every Drupal-originated message carries a metadata signature (README, "Every message
+carries the Drupal signature"). It is worth knowing exactly what leaves Drupal:
+
+- **Always:** the site name, the assistant's machine id and label, and — when the
+  admin filled them in — the assistant's instructions and history length. This is
+  assistant *configuration*, not visitor data.
+- **The page, when the chat box is on a content route:** the path the box is on and,
+  for a single-content page, that entity's *type and id* — never its content, and only
+  for a page the visitor is already viewing.
+- **Visitor identity — opt-in, default OFF:** the current user's name and roles, plus
+  the assistant's allowed-roles list, travel ONLY when **Forward visitor identity to
+  n8n** is enabled on the assistant. Leave it off and no personal data crosses.
+- **Never:** the n8n API key, any Drupal secret, or the conversation history — only the
+  newest message travels, and the key is used server-side to list workflows, never sent
+  to the chat webhook.
+
+The signature is metadata a workflow MAY read; it changes nothing on the Drupal side.
+Your n8n instance is only as private as its chat webhook, which may be unauthenticated
+(see the connection settings) — so treat a public agent's metadata as public.
+
+---
+
 ## Session isolation
 
 Each conversation maps to an n8n session id derived from the assistant and the
@@ -173,10 +198,17 @@ current user, and n8n's memory node threads on it. That makes session isolation 
 - Two different users must never share a session id.
 - Two different assistants must never share a session id, even against one agent.
 
-Both are specified in
-[`features/session-memory.feature`](features/session-memory.feature) ("Two visitors
-do not share a conversation", "Two assistants against one agent are separate
-conversations").
+Both follow from how the session id is *derived* — the runner's thread key, which
+is already per user and per assistant — recorded in
+[Appendix A §4](saga/Appendix_A_The_Glovebox.md).
+
+**Neither is asserted by a test today.** The scenarios that covered the session
+bridge went with the spec rewrite, and the rewritten assistant spec has not
+reached memory yet, so this rests on the derivation until it does. Separately,
+whether one browser keeps one session across page loads is Drupal's server-side
+session behaviour and is not reproducible in a headless suite at all — that part
+is documented rather than tested by design. The anonymous-visitor case below is
+the known hole.
 
 > ⚠️ **Known open question — anonymous visitors.** Drupal derives its thread id from
 > the current user's id, and every anonymous visitor has user id `0`. If that id

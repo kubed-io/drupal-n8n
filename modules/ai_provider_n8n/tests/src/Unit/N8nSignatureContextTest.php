@@ -24,7 +24,7 @@ use Symfony\Component\Routing\Matcher\RequestMatcherInterface;
  * pins the mapping rules — the aif_ tool ids and the single-entity page rule —
  * as unit facts; the Behat suite proves the same rules end to end through n8n.
  *
- * Spec: features/agents-metadata.feature, features/page-context.feature
+ * Spec: features/assistant.feature, the "agents", "path" and "entity" rows
  *
  * @group n8n
  * @group ai_provider_n8n

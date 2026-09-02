@@ -25,7 +25,7 @@ use Drupal\KernelTests\KernelTestBase;
  * test goes red — and it should, loudly, because the guarantee would be gone
  * while everything still appeared to function.
  *
- * Spec: features/agent-exclusion.feature
+ * Spec: features/connection.feature, the provider surfaces a connection opens
  *
  * @group n8n
  * @group ai_provider_n8n

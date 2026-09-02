@@ -28,9 +28,12 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  * ai_assistant_api. The literal keeps this subscriber inert-but-safe there; the
  * event simply never fires, and getSubscribedEvents() never touches the class.
  *
+ * Specified as the `path` and `entity` rows of the assistant spec's signature
+ * table.
+ *
  * @see \Drupal\ai_provider_n8n\N8nChatContext
  * @see \Drupal\ai_provider_n8n\AiProviderN8nServiceProvider
- * @see features/page-context.feature
+ * @see features/assistant.feature
  */
 class ChatContextSubscriber implements EventSubscriberInterface {
 

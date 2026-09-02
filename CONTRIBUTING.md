@@ -85,14 +85,17 @@ The agent's model, prompt, memory, tools and RAG live in n8n. Drupal owns the ch
 box and the door. **A PR that adds a Drupal setting for something n8n already owns
 will be rejected**, however convenient it seems. When Drupal hands us a system
 prompt, we drop it. When Drupal offers history, we ignore it. See
-[`features/drupal-signature.feature`](features/drupal-signature.feature) — that
-behaviour is specified, not incidental.
+[`features/assistant.feature`](features/assistant.feature) — that behaviour is
+specified, not incidental.
 
 The corollary: **n8n must never be selectable where a raw model is required.** The
 provider supports `chat` and declines the `ChatTools` capability, and Drupal's own
 capability filtering does the rest. If you find yourself writing a `hook_form_alter`
 to hide n8n from somewhere, stop — you've broken the capability contract instead of
-fixing it. See [`features/agent-exclusion.feature`](features/agent-exclusion.feature).
+fixing it. See [`features/connection.feature`](features/connection.feature), whose
+last two `Then`s are the surfaces a connection opens up, and
+[Appendix A §3](saga/Appendix_A_The_Glovebox.md) for the full inventory of provider-selection
+surfaces, verified live.
 
 ### The spec comes first — and the README comes before the spec
 

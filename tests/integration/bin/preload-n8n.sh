@@ -14,7 +14,8 @@
 #
 # Every fixture is LLM-free — Chat Trigger → Code → responseMode: lastNode — and
 # each chat trigger sets "Make Chat Publicly Available" in its JSON except the
-# Private Agent, which exists to prove the public filter. See features/README.md.
+# Private Agent, which exists to prove the public filter. What each fixture is
+# there to prove is recorded in saga/Appendix_A_The_Glovebox.md §11.
 #
 # Inputs (env):  N8N_URL, N8N_API_KEY (minted by mint-n8n-key.sh, with tag scopes).
 

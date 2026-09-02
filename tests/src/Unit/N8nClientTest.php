@@ -27,7 +27,7 @@ use GuzzleHttp\Psr7\Response;
  * response handling can both be asserted without a network — the same technique
  * ai_provider_openai uses, and the reason we can assert what we send n8n at all.
  *
- * Spec: features/admin-connection.feature
+ * Spec: features/connection.feature
  *
  * @group n8n
  *
