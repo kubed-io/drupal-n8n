@@ -488,9 +488,10 @@ knowing, because both were in `SECURITY.md`:
   test** and must be reviewed by hand, with the block recorded in §§1 and 12.
 - *"Two different users must never share a session id … both are specified in
   `session-memory.feature`."* Those two scenarios **never existed**, in that file
-  or anywhere else. The claim now points at §4 and says plainly that neither has
-  been asserted, because the behaviour it rests on is Drupal's server-side
-  session and is not reproducible headless.
+  or anywhere else. The claim now points at §4 and says plainly that neither is
+  asserted today: the separation follows from how the id is *derived* — the
+  runner's thread key is already per user and per assistant — and the scenarios
+  that covered the session bridge at all went with the rewrite.
 
 A dangling link is cheap to fix. A link that says a security property is tested
 when it is not is the expensive kind, and it hid behind the dangling one.
