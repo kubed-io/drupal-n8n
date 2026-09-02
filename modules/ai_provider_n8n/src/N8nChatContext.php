@@ -18,9 +18,12 @@ namespace Drupal\ai_provider_n8n;
  * A plain container service is request-scoped in Drupal — the container is rebuilt
  * per request — so no reset is needed between requests.
  *
+ * Specified as the `path` and `entity` rows of the assistant spec's signature
+ * table.
+ *
  * @see \Drupal\ai_provider_n8n\EventSubscriber\ChatContextSubscriber
  * @see \Drupal\ai_provider_n8n\Plugin\AiProvider\N8nProvider::pageContextMetadata()
- * @see features/assistant.feature, the "path" and "entity" rows
+ * @see features/assistant.feature
  */
 class N8nChatContext {
 

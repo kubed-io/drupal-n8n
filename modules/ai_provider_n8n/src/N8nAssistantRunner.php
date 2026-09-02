@@ -31,9 +31,12 @@ use Drupal\n8n\N8nClientInterface;
  * newest user message regardless, so the loaded history reaches the chat box and
  * never the agent — recall stays n8n's job, display becomes shared.
  *
+ * No scenario covers the session bridge yet — the ones that did went with the
+ * spec rewrite. Its rules are recorded in section 4 of the saga appendix.
+ *
  * @see \Drupal\ai_provider_n8n\AiProviderN8nServiceProvider
  * @see \Drupal\n8n\N8nClientInterface::loadPreviousSession()
- * @see saga/Appendix_A_The_Glovebox.md §4, the session bridge
+ * @see saga/Appendix_A_The_Glovebox.md
  * @see README.md#where-the-conversation-is-remembered
  */
 class N8nAssistantRunner extends AiAssistantApiRunner {

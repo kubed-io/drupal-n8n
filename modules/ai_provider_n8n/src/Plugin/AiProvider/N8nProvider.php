@@ -31,9 +31,12 @@ use Symfony\Component\HttpFoundation\Request;
  * 3. The connection belongs to the base `n8n` module so a future n8n_webform can
  *    share it — hence the getConfig() override.
  *
+ * The last two `Then`s of the connection spec are the surfaces a configured
+ * connection opens up, and the ones it must not.
+ *
  * @see README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown
  * @see README.md#settings-that-intentionally-do-nothing
- * @see features/connection.feature, the provider surfaces a connection opens
+ * @see features/connection.feature
  */
 #[AiProvider(
   id: 'n8n',
@@ -326,7 +329,9 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * ticking agents cannot turn the one-call passthrough into two. Empty
    * selection means the agents key is absent.
    *
-   * @see features/assistant.feature, the "agents" row
+   * Specified as the `agents` row of the assistant spec's signature table.
+   *
+   * @see features/assistant.feature
    */
   protected function agentsMetadata(string $agent_id): array {
     $agent = $this->loadEntity('ai_agent', $agent_id);
@@ -402,8 +407,11 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * page, or an admin route, no single entity owns the page and entity is absent.
    * With no page context at all, the whole block is absent.
    *
+   * Specified as the `path` and `entity` rows of the assistant spec's
+   * signature table.
+   *
    * @see \Drupal\ai_provider_n8n\EventSubscriber\ChatContextSubscriber
-   * @see features/assistant.feature, the "path" and "entity" rows
+   * @see features/assistant.feature
    */
   protected function pageContextMetadata(): array {
     $path = $this->chatContext->getPath();
