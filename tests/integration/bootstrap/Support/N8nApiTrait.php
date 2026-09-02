@@ -10,9 +10,9 @@ use GuzzleHttp\Exception\GuzzleException;
 /**
  * Talks to the ephemeral n8n directly, as the *other* side of every assertion.
  *
- * The point of the integration suite is that it checks both ends: Drupal says it
- * reached n8n, and n8n independently agrees. This trait is the n8n end, and it
- * deliberately does NOT go through the module under test.
+ * The point of the integration suite is that it checks both ends: Drupal says
+ * it reached n8n, and n8n independently agrees. This trait is the n8n end, and
+ * it deliberately does NOT go through the module under test.
  *
  * Ported from the sibling nextcloud-n8n project — same n8n, same public API, so
  * this is the piece that transfers between them almost unchanged.

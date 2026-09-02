@@ -28,11 +28,25 @@ default:
 
   suites:
     default:
+      # ONE ENTRY PER WIRED FEATURE FILE, not the features/ directory.
+      #
+      # Gherkin lives at the repo root under features/ so the human-readable use
+      # cases are prominent and linkable from the README; this config stays down
+      # here with the rest of the test plumbing.
+      #
+      # Naming the files rather than the directory is what lets the run be
+      # --strict: an undefined step is a FAILURE, never a green scenario Behat
+      # quietly skipped. assistant.feature is written and its steps are not
+      # built, so pointing at the directory would mean choosing between a red
+      # suite and a suite that reports "undefined" as success. Neither is worth
+      # having.
+      #
+      # THE TRADE-OFF, stated so it does not become a trap: a new feature file
+      # is NOT run until it is added here. If assistant.feature grows a @todo
+      # tag — the repo's own convention, see the filter above — this can go back
+      # to naming the directory and the tag does the scoping instead.
       paths:
-        # Gherkin lives at the repo root under features/ so the human-readable use
-        # cases are prominent and linkable from the README; this config stays down
-        # here with the rest of the test plumbing.
-        - '%paths.base%/../../features'
+        - '%paths.base%/../../features/connection.feature'
       contexts:
         - Drupal\Tests\n8n\Integration\FeatureContext
 

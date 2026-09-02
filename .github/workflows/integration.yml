@@ -168,7 +168,11 @@ jobs:
         DRUSH: /tmp/drupal/vendor/bin/drush
         DRUPAL_BASE_URL: http://localhost:8080
         N8N_API_KEY: ${{ steps.n8n_key.outputs.key }}
-      run: vendor/bin/behat --config behat.dist.yml
+      # --strict: an undefined or pending step FAILS the run. Without it Behat
+      # reports "1 passed, 1 undefined" and exits zero, which is the exact trap
+      # the context's own comment warns about — a mistyped step goes undefined
+      # and the suite fails while looking green.
+      run: vendor/bin/behat --config behat.dist.yml --strict
 
     - name: Publish integration results
       if: always()

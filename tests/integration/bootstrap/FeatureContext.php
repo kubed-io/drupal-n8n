@@ -18,36 +18,36 @@ use PHPUnit\Framework\Assert;
  * Behat context for the n8n integration suite.
  *
  * Deliberately thin: it owns the state carried between steps, the lifecycle
- * hooks, and the composition below. Every step definition lives in a per-concern
- * trait, so a new feature grows ONE `Steps/*` trait rather than bloating a
- * single file — the shape the sibling nextcloud-n8n settled on after its own
- * context hit a thousand lines.
+ * hooks, and the composition below. Every step definition lives in a
+ * per-concern trait, so a new feature grows ONE `Steps/*` trait rather than
+ * bloating a single file — the shape the sibling nextcloud-n8n settled on
+ * after its own context hit a thousand lines.
  *
+ * @code
  *   bootstrap/
- *     FeatureContext.php   ← you are here: state + lifecycle + composition
- *     Steps/               ← gherkin-facing definitions, one trait per concern
- *       ModuleSteps, ConnectionSteps, ProviderSurfaceSteps
- *     Support/             ← transport and arrange plumbing, no step definitions
- *       DrushTrait, DrupalEvalTrait, N8nApiTrait, SetupTrait
+ *     FeatureContext.php   state + lifecycle + composition
+ *     Steps/               gherkin-facing definitions, one per concern
+ *     Support/             transport and arrange plumbing, no steps
+ * @endcode
  *
- * Two transports, each faithful to a real actor:
- *  - **drush** ($DRUSH) drives the admin surface the way an operator or a
- *    deployment lifecycle hook does. Every admin action this module offers has a
- *    drush equivalent — a product requirement, not a testing convenience — which
- *    is why the suite needs no browser.  → DrushTrait, with DrupalEvalTrait for
- *    the AI module's services, which have no CLI of their own.
- *  - **n8n REST** (Guzzle, X-N8N-API-KEY) is the independent side: n8n agreeing,
- *    without the module in the middle.  → N8nApiTrait
+ * Two transports, each faithful to a real actor. **drush** ($DRUSH) drives
+ * the admin surface the way an operator or a deployment lifecycle hook does;
+ * every admin action this module offers has a drush equivalent — a product
+ * requirement, not a testing convenience — which is why the suite needs no
+ * browser, with DrupalEvalTrait covering the AI module's services, which
+ * have no CLI of their own. **n8n REST** (Guzzle, X-N8N-API-KEY) is the
+ * independent side: n8n agreeing, without the module in the middle.
  *
- * SCOPE, as of the rewrite. This suite covers `features/connection.feature` and
- * nothing else. The previous context carried 1264 lines of definitions for the
- * ten feature files deleted in `features/old/` — chat, memory, the signature,
- * model discovery. Those went with the specs they served; the contracts they
- * encoded are recorded in `saga/Appendix_A_The_Glovebox.md`, and the definitions
- * themselves are in git history for whoever writes `assistant.feature`.
+ * SCOPE, as of the rewrite. This suite covers `features/connection.feature`
+ * and nothing else. The previous context carried 1264 lines of definitions
+ * for the ten feature files deleted with `features/old/` — chat, memory, the
+ * signature, model discovery. Those went with the specs they served; the
+ * contracts they encoded are recorded in `saga/Appendix_A_The_Glovebox.md`,
+ * and the definitions themselves are in git history for whoever writes
+ * `assistant.feature`.
  *
- * Keep parentheses out of step text: a literal ( or ) becomes a regex group, the
- * step silently goes undefined, and the suite fails while looking green.
+ * Keep parentheses out of step text: a literal ( or ) becomes a regex group,
+ * the step silently goes undefined, and the suite fails while looking green.
  */
 class FeatureContext implements Context {
 
@@ -119,10 +119,10 @@ class FeatureContext implements Context {
   /**
    * Puts the connection settings back after every scenario.
    *
-   * A scenario that pointed the site at an unreachable host or a wrong key would
-   * otherwise hand the next one a broken connection and a failure that reads as
-   * a bug. Deleting the settings — rather than restoring a "good" connection —
-   * keeps each scenario's arrange honest about what it set up.
+   * A scenario that pointed the site at an unreachable host or a wrong key
+   * would otherwise hand the next one a broken connection and a failure that
+   * reads as a bug. Deleting the settings — rather than restoring a "good"
+   * connection — keeps each scenario's arrange honest about what it set up.
    *
    * @AfterScenario
    */

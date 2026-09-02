@@ -14,17 +14,17 @@ namespace Drupal\Tests\n8n\Integration\Support;
  *
  * `features/connection.feature` writes the connection out as a form the admin
  * fills in, and two of its four fields cannot be taken literally: the suite has
- * to reach a REAL ephemeral n8n with a REAL minted key, and neither value exists
- * until the pipeline is already running.
+ * to reach a REAL ephemeral n8n with a REAL minted key, and neither value
+ * exists until the pipeline is already running.
  *
  * So two cell values are documented placeholders, and everything else is taken
  * at face value:
  *
- *   | base URL | https://n8n.example.com |  → the n8n under test ($N8N_URL)
+ *   | base URL | https://n8n.example.com |  → the n8n under test
  *   | API key  | my-secret-api-key       |  → the key minted for this run
  *
- * Any OTHER value is used verbatim, which is what lets a later scenario point at
- * a deliberately unreachable host or a deliberately wrong key and assert the
+ * Any OTHER value is used verbatim, which is what lets a later scenario point
+ * at a deliberately unreachable host or a deliberately wrong key and assert the
  * failure. The mapping is narrow and explicit on purpose: a placeholder that
  * silently swallowed every value would make the feature file a decoration.
  *
@@ -96,8 +96,9 @@ trait SetupTrait {
    *
    * Every field goes through the drush command that owns it, because those
    * commands ARE the admin surface a deployment lifecycle uses — driving config
-   * directly would test Drupal's config system instead of this module's. The one
-   * exception is the timeout, which has no command yet, so it is set as config.
+   * directly would test Drupal's config system instead of this module's. The
+   * one exception is the timeout, which has no command yet, so it is set as
+   * config.
    *
    * @param array<string, string> $values
    *   Stated connection values, keyed by the feature file's field names,
@@ -131,9 +132,10 @@ trait SetupTrait {
   }
 
   /**
-   * The connection settings the site is holding right now, as the module sees them.
+   * The connection settings the site holds now, as the module sees them.
    *
    * @return array<string, mixed>
+   *   The four n8n.settings values, keyed as the config stores them.
    */
   protected function connectionSettings(): array {
     return (array) $this->drupalEvalJson(<<<'PHP'
