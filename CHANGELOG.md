@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The session-memory spec is wired and running: the thread key becomes n8n's session id, only the newest message travels, and the history length reaches n8n — proven end to end. The README explains the `@n8n/chat` parallel and that the chat trigger's Load Previous Session setting is n8n's own concern, not Drupal's.
 - Instructions and History context length are documented as forwarded context, not inert settings.
 - Refactor: the signature's five entity reads share one guarded loader — DRY, no behaviour change.
+- Rewritten specs: the ten feature files that gave each metadata key a file of its own are replaced by one connection spec and one assistant spec, with the integration harness rebuilt around them — the contracts they encoded are recorded in `saga/Appendix_A_The_Glovebox.md`.
 
 ## [0.1.1] - 2026-07-18
 
