@@ -84,10 +84,10 @@ belongs to us**:
 - **The Key module owns it.** We store a *reference* to a Key entity, never the
   secret. That's why it can live in a file, an env var, or a secrets manager.
 - **Never logged, never echoed.** The settings form does not render the raw key back
-  to the browser — guarded by
-  [`features/admin-connection.feature`](features/admin-connection.feature)
-  ("The API key is never echoed back to the browser"). Error paths log the n8n status
-  code, never the request headers.
+  to the browser. Error paths log the n8n status code, never the request headers.
+  **Not currently covered by a test** — the scenario needs a rendered page, which the
+  integration harness cannot serve; it is recorded as blocked in
+  [Appendix A §§1, 12](saga/Appendix_A_The_Glovebox.md). Review this by hand when touching the form.
 - **`drush n8n:set-key` takes a Key entity name, not a raw secret** — so a key never
   lands in shell history or a process list.
 - **CI masks it.** The integration suite mints a throwaway key against an ephemeral
@@ -197,10 +197,11 @@ current user, and n8n's memory node threads on it. That makes session isolation 
 - Two different users must never share a session id.
 - Two different assistants must never share a session id, even against one agent.
 
-Both are specified in
-[`features/session-memory.feature`](features/session-memory.feature) ("Two visitors
-do not share a conversation", "Two assistants against one agent are separate
-conversations").
+Both follow from where the session id comes from — the runner's own thread key, per
+user and per assistant — which is recorded in
+[Appendix A §4](saga/Appendix_A_The_Glovebox.md). Neither has ever been asserted by a scenario: the
+same-browser-across-page-loads behaviour is Drupal's server-side session, not
+reproducible in a headless suite, so it is documented rather than tested.
 
 > ⚠️ **Known open question — anonymous visitors.** Drupal derives its thread id from
 > the current user's id, and every anonymous visitor has user id `0`. If that id

@@ -30,7 +30,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  *
  * @see \Drupal\ai_provider_n8n\N8nChatContext
  * @see \Drupal\ai_provider_n8n\AiProviderN8nServiceProvider
- * @see features/page-context.feature
+ * @see features/assistant.feature, the "path" and "entity" rows
  */
 class ChatContextSubscriber implements EventSubscriberInterface {
 

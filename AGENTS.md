@@ -66,12 +66,13 @@ Violating one breaks the product's thesis, not just its style.
 
 - **n8n owns the brain** — model, prompt, memory, tools. Never add a Drupal setting
   for something n8n owns. → [CONTRIBUTING § n8n owns the brain](CONTRIBUTING.md#n8n-owns-the-brain--never-take-it-back)
-  · spec: [drupal-signature.feature](features/drupal-signature.feature)
+  · spec: [assistant.feature](features/assistant.feature)
 - **n8n is an assistant, never an agent.** We support `chat` and decline the
   `ChatTools` capability; Drupal's own filtering does the rest. **Writing a
   `hook_form_alter` to hide n8n means you broke the contract instead of fixing it.**
   → [README § why n8n is absent from the Agent dropdown](README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown)
-  · spec: [agent-exclusion.feature](features/agent-exclusion.feature)
+  · spec: [connection.feature](features/connection.feature) · contracts:
+  [Appendix A §3](saga/Appendix_A_The_Glovebox.md)
 - **Zero JavaScript.** If a task seems to need JS, it is the wrong task.
   → [CONTRIBUTING § least code wins](CONTRIBUTING.md#least-code-wins)
 - **Least code wins.** A diff that grows the surface must justify itself.
@@ -106,14 +107,14 @@ Each cost someone a session. One line each; follow the link before you act on it
 - `metadata.instructions` is the **agent entity's stored `system_prompt`**, not
   `$input->getSystemPrompt()` — the latter is the loop's per-turn runtime prompt
   with framing noise. Empty instructions ⇒ the key is absent (zero-detail
-  passthrough). · spec: [drupal-signature.feature](features/drupal-signature.feature)
+  passthrough). · spec: [assistant.feature](features/assistant.feature)
 - The session id is the runner's thread key from the `ai_agents_thread_` tag,
   sent as n8n `sessionId` — the `@n8n/chat` model, sourced from Drupal's session.
   `session_one_thread` is **only stable per browser (web session)**, NOT across
   CLI processes — so tests prove the bridge deterministically, not per-browser
   stability. `metadata.context_window` = the assistant's `history_context_length`
   (absent when 0). The chat trigger's Load Previous Session is n8n's own concern;
-  we never call `loadPreviousSession`. · spec: [session-memory.feature](features/session-memory.feature)
+  we never call `loadPreviousSession`. · contracts: [Appendix A §4](saga/Appendix_A_The_Glovebox.md)
 
 **Domain config** → [saga §9.1](saga/Chapter_1_Packing_the_Van.md)
 

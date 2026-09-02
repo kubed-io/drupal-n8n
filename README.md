@@ -90,7 +90,12 @@ You don't configure this. It isn't a checkbox. It's what the module *is*.
 
 ## Features
 
-This is a high-level showcase. Each feature links to its **executable specification** — a Gherkin `.feature` file under [`features/`](features/) that describes the exact behaviour in plain language and drives the integration tests — and to the **code** that implements it. Docs, tests, and code stay aligned: the `.feature` files *are* the requirements.
+This is a high-level showcase. Each feature links to the **specification** that owns its behaviour and to the **code** that implements it, so docs, tests and code stay aligned.
+
+Two kinds of link, because they promise different things:
+
+- 📋 **spec** — a Gherkin `.feature` file under [`features/`](features/). This is the requirement, in plain language. [`connection.feature`](features/connection.feature) runs in CI on every PR; [`assistant.feature`](features/assistant.feature) is written and its step definitions are being built.
+- 📋 **contracts** — a section of [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md), where the rules for a behaviour are recorded but no scenario covers it yet. These were specs once; they were deleted with the ten per-key feature files they lived in, and the appendix is the honest record until the rewritten specs reach them.
 
 ### Tag your agents for the site
 
@@ -118,7 +123,7 @@ A model doesn't have to contain an AI Agent node, either. This module never look
 
 Nothing about your workflows is copied into Drupal's config. The only trace is the workflow id in the assistant's **model** field — exactly where `gpt-4o` would sit.
 
-📋 spec: [`features/model-discovery.feature`](features/model-discovery.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php), [`src/N8nClient.php`](src/N8nClient.php)
+📋 contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §2, what a model *is* · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php), [`src/N8nClient.php`](src/N8nClient.php)
 
 ### Different agents per site (multisite)
 
@@ -138,7 +143,7 @@ The setup is short:
 
 A visitor's message now goes to your agent's Chat Trigger and the answer comes back in the chat box. Everything the agent does in between — which model it calls, which tools it fires, what it remembers — is invisible to Drupal, deliberately.
 
-📋 spec: [`features/assistant-chat.feature`](features/assistant-chat.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+📋 spec: [`features/assistant.feature`](features/assistant.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
 ### The agent remembers
 
@@ -155,7 +160,7 @@ Two things always hold:
 
 And you can size the memory from Drupal: set **History context length** on the assistant and it rides along as `metadata.context_window`, so your memory node's **Context Window Length** can be `={{ $json.metadata.context_window }}`.
 
-📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+📋 contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §4, the session bridge · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
 ### Where the conversation is remembered
 
@@ -172,7 +177,7 @@ The agent always remembers through its own memory node — that's the recall it 
 
 > **Rule of thumb.** Want it to *just work* with any workflow? Use **Session**. Have a Postgres (or otherwise retrieving) memory and want n8n to be the one transcript? Use **Session (from n8n memory)** and make sure that memory is on the Agent.
 
-📋 spec: [`features/session-memory.feature`](features/session-memory.feature) · 🛠 [`modules/ai_provider_n8n/src/N8nAssistantRunner.php`](modules/ai_provider_n8n/src/N8nAssistantRunner.php)
+📋 contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §4, who owns the transcript · 🛠 [`modules/ai_provider_n8n/src/N8nAssistantRunner.php`](modules/ai_provider_n8n/src/N8nAssistantRunner.php)
 
 ### Every message carries the Drupal signature
 
@@ -196,7 +201,7 @@ The conversation your agent sees carries exactly one thing: the visitor's newest
 
 Everything below this line is that same signature, feature by feature.
 
-📋 envelope spec: [`features/drupal-signature.feature`](features/drupal-signature.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+📋 envelope spec: [`features/assistant.feature`](features/assistant.feature) — its `Then` table is the signature · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
 ### Lend your agent Drupal's own agents
 
@@ -210,7 +215,7 @@ Now the **assistant** decides which Drupal agents its workflow may use, right on
 
 This is the mirror of [Drupal answers back](#drupal-answers-back): there, your agent *can* reach into Drupal; here, the assistant says *which parts* it may reach.
 
-📋 spec: [`features/agents-metadata.feature`](features/agents-metadata.feature)
+📋 spec: [`features/assistant.feature`](features/assistant.feature), the `agents` row · contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §7
 
 ### Know who's asking
 
@@ -220,7 +225,7 @@ Flip it on and every message carries three keys together: the visitor's `user` n
 
 `allowed_roles` is **always a list** under the switch — the assistant's roles when it restricts, or an empty list when it's open to everyone — so a workflow can read it without checking whether the key exists. And it's context, never a gate: Drupal has *already* enforced who may use the assistant before the message left, so a workflow can log it or branch on it, but it changes nothing on the n8n side.
 
-📋 spec: [`features/user-context.feature`](features/user-context.feature)
+📋 spec: [`features/assistant.feature`](features/assistant.feature), the `user` rows · contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §9
 
 ### Know what page they're on
 
@@ -228,13 +233,13 @@ The chat box knows which page it's sitting on — and now your agent does too. `
 
 These facts come from Drupal's **chat context** — a small bundle the chat block already sends with every message. Today that bundle carries the **page path and nothing else**; Drupal may grow it over time, and as it does, more page context can ride the signature. For now, `path` is the one to count on, with `entity` derived from it.
 
-📋 spec: [`features/page-context.feature`](features/page-context.feature)
+📋 spec: [`features/assistant.feature`](features/assistant.feature), the `path` and `entity` rows · contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §8
 
 ### One agent, many personas
 
 That signature is what makes assistants **overrideable implementations** of one agent. Nothing on the assistant form has to be filled in, and its name doesn't have to match the workflow's — but each assistant that points at the same model sends its own signature. A formal persona on the support page, a playful one on the blog: same workflow, two assistants, `metadata.instructions` doing the differentiating. Or ignore all of it and run one assistant per agent — both are first-class.
 
-📋 spec: [`features/assistant-instructions.feature`](features/assistant-instructions.feature) · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
+📋 spec: [`features/assistant.feature`](features/assistant.feature), the `instructions` row · 🛠 [`modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php`](modules/ai_provider_n8n/src/Plugin/AiProvider/N8nProvider.php)
 
 ### Start from the Drupal Assistant template
 
@@ -250,7 +255,7 @@ n8n appears wherever an **assistant** picks a provider. It appears **nowhere** a
 
 If you need Drupal-side agents, keep a real LLM provider (OpenAI, Anthropic, …) configured alongside. The two coexist happily — and your n8n agent can *call* those Drupal agents through MCP, which is the right direction for that trick anyway.
 
-📋 spec: [`features/agent-exclusion.feature`](features/agent-exclusion.feature)
+📋 spec: [`features/connection.feature`](features/connection.feature), the provider surfaces a connection opens · contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §3
 
 ### Failures surface, they don't hang
 
@@ -258,7 +263,7 @@ If n8n is unreachable, the key is wrong, or a workflow isn't active, the chat bo
 
 An **inactive workflow** is the most common one: n8n only serves a production chat webhook while the workflow is active.
 
-📋 spec: [`features/assistant-chat.feature`](features/assistant-chat.feature) — the failure edges of the round trip
+📋 contracts: [`saga/Appendix_A_The_Glovebox.md`](saga/Appendix_A_The_Glovebox.md) §10 — the failure edges of the round trip
 
 ### Drupal answers back
 

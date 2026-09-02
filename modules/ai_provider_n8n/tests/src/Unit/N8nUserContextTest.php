@@ -19,7 +19,7 @@ use Drupal\Tests\UnitTestCase;
  * user/user_roles are PII that travel ONLY when the assistant opts in. Every
  * key is absent when it has nothing to say.
  *
- * Spec: features/user-context.feature
+ * Spec: features/assistant.feature, the "user" rows
  *
  * @group n8n
  * @group ai_provider_n8n

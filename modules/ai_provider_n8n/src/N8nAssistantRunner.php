@@ -33,7 +33,7 @@ use Drupal\n8n\N8nClientInterface;
  *
  * @see \Drupal\ai_provider_n8n\AiProviderN8nServiceProvider
  * @see \Drupal\n8n\N8nClientInterface::loadPreviousSession()
- * @see features/session-memory.feature
+ * @see saga/Appendix_A_The_Glovebox.md §4, the session bridge
  * @see README.md#where-the-conversation-is-remembered
  */
 class N8nAssistantRunner extends AiAssistantApiRunner {

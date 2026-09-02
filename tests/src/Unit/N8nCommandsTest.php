@@ -21,7 +21,7 @@ use PHPUnit\Framework\MockObject\MockObject;
  * A LoggerInterface mock would accept anything and prove nothing — which is how
  * a TypeError reached v0.0.2.
  *
- * Spec: features/admin-connection.feature
+ * Spec: features/connection.feature
  *
  * @group n8n
  *

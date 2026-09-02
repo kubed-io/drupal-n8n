@@ -20,7 +20,7 @@ namespace Drupal\ai_provider_n8n;
  *
  * @see \Drupal\ai_provider_n8n\EventSubscriber\ChatContextSubscriber
  * @see \Drupal\ai_provider_n8n\Plugin\AiProvider\N8nProvider::pageContextMetadata()
- * @see features/page-context.feature
+ * @see features/assistant.feature, the "path" and "entity" rows
  */
 class N8nChatContext {
 

@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Instructions and History context length are documented as forwarded context, not inert settings.
 - Refactor: the signature's five entity reads share one guarded loader — DRY, no behaviour change.
 - Rewritten specs: the ten feature files that gave each metadata key a file of its own are replaced by one connection spec and one assistant spec, with the integration harness rebuilt around them — the contracts they encoded are recorded in `saga/Appendix_A_The_Glovebox.md`.
+- Every spec link in the README, AGENTS, CONTRIBUTING and SECURITY docs — and in the source and test docblocks — now resolves; SECURITY.md no longer claims the un-echoed API key and the per-user session id are covered by tests, because they never were.
 
 ## [0.1.1] - 2026-07-18
 

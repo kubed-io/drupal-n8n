@@ -33,7 +33,7 @@ use Symfony\Component\HttpFoundation\Request;
  *
  * @see README.md#why-n8n-is-deliberately-absent-from-the-agent-dropdown
  * @see README.md#settings-that-intentionally-do-nothing
- * @see features/agent-exclusion.feature
+ * @see features/connection.feature, the provider surfaces a connection opens
  */
 #[AiProvider(
   id: 'n8n',
@@ -326,7 +326,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * ticking agents cannot turn the one-call passthrough into two. Empty
    * selection means the agents key is absent.
    *
-   * @see features/agents-metadata.feature
+   * @see features/assistant.feature, the "agents" row
    */
   protected function agentsMetadata(string $agent_id): array {
     $agent = $this->loadEntity('ai_agent', $agent_id);
@@ -403,7 +403,7 @@ class N8nProvider extends AiProviderClientBase implements ChatInterface {
    * With no page context at all, the whole block is absent.
    *
    * @see \Drupal\ai_provider_n8n\EventSubscriber\ChatContextSubscriber
-   * @see features/page-context.feature
+   * @see features/assistant.feature, the "path" and "entity" rows
    */
   protected function pageContextMetadata(): array {
     $path = $this->chatContext->getPath();

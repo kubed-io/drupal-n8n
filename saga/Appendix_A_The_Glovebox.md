@@ -451,26 +451,53 @@ The reasons are harness limitations, not design doubts.
 
 ---
 
-## 13. Dangling spec links left by the deletion
+## 13. Where the spec links point now
 
-The deleted files were referenced from **~30 places** by their pre-`old/` paths
-(`features/<name>.feature`), so those links were **already broken** before this
-deletion — they broke when the files were moved into `old/`. Deleting the folder
-makes that permanent, and the references are still there:
+The deleted files were referenced from **30 places** by their pre-`old/` paths
+(`features/<name>.feature`), so those links were **already broken** before the
+deletion — they broke when the files were moved into `old/`. All 30 were
+repointed in the same PR that deleted them, so the baseline is clean.
 
-- **`README.md`** — nine `📋 spec:` links (model-discovery ×1, assistant-chat ×2,
-  session-memory ×2, drupal-signature ×1, agents-metadata, user-context,
-  page-context, assistant-instructions, agent-exclusion)
-- **`AGENTS.md`** — four `· spec:` links
-- **`CONTRIBUTING.md`** — two, **`SECURITY.md`** — two
-- **Source docblocks** — `src/Form/N8nSettingsForm.php`,
-  `src/Drush/Commands/N8nCommands.php`, `N8nAssistantRunner.php`,
-  `N8nChatContext.php`, `N8nProvider.php` (×3), `ChatContextSubscriber.php`
-- **Test headers** — `N8nProviderContractTest`, `N8nUserContextTest`,
-  `N8nSignatureContextTest`, `N8nCommandsTest`, `N8nClientTest`
+Two kinds of link now, because they promise different things:
 
-They are deliberately **left alone for now**: where each should point depends on
-the shape of the new `features/`, which is still being written. Repointing them
-is a single sweep once `assistant.feature` has its scenarios — and it should be
-one commit, so the diff reads as "spec links follow the new suite" rather than as
-noise inside a feature commit.
+- **spec** — a live `.feature` file. `connection.feature` runs in CI;
+  `assistant.feature` is written and its step definitions are being built.
+- **contracts** — a section of this appendix, where a behaviour's rules are
+  recorded but no scenario covers it.
+
+| Old target | Now points at |
+|---|---|
+| `admin-connection.feature` | `features/connection.feature` |
+| `agent-exclusion.feature` | `features/connection.feature` — its last two `Then`s — plus §3 for the full surface inventory |
+| `drupal-signature.feature` | `features/assistant.feature`, whose `Then` table *is* the envelope |
+| `assistant-instructions.feature` | `features/assistant.feature`, the `instructions` row |
+| `agents-metadata.feature` | `features/assistant.feature`, the `agents` row, plus §7 |
+| `user-context.feature` | `features/assistant.feature`, the `user` rows, plus §9 |
+| `page-context.feature` | `features/assistant.feature`, the `path`/`entity` rows, plus §8 |
+| `assistant-chat.feature` | `features/assistant.feature` for the round trip; §10 for the failure edges |
+| `session-memory.feature` | §4 — nothing in the new specs reaches memory yet |
+| `model-discovery.feature` | §2 — nothing in the new specs reaches discovery yet |
+| `features/README.md` (never existed) | §11, which records what each fixture proves |
+
+**Two of those links were overclaiming, and the repointing fixed it** — worth
+knowing, because both were in `SECURITY.md`:
+
+- *"The settings form does not render the raw key back to the browser — guarded
+  by `admin-connection.feature`."* That scenario existed but was tagged `@todo`,
+  so it never ran. It now says the behaviour is **not currently covered by a
+  test** and must be reviewed by hand, with the block recorded in §§1 and 12.
+- *"Two different users must never share a session id … both are specified in
+  `session-memory.feature`."* Those two scenarios **never existed**, in that file
+  or anywhere else. The claim now points at §4 and says plainly that neither has
+  been asserted, because the behaviour it rests on is Drupal's server-side
+  session and is not reproducible headless.
+
+A dangling link is cheap to fix. A link that says a security property is tested
+when it is not is the expensive kind, and it hid behind the dangling one.
+
+**Left as history, deliberately.** Seven references remain, and all of them are
+dated records rather than live pointers: the immutable `[0.1.1]` and earlier
+CHANGELOG sections, and the saga's own narrative — Chapter 1 §673, Chapter 2
+§§137 and 1661 on the old `features/README.md`, and the 2026-07-19 work order at
+Chapter 2 §§1806, 1817 and 1837. Rewriting a dated log to match today would
+falsify it. Chapter 2 §9 records the rewrite instead.

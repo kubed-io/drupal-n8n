@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * is configured in n8n.
  *
  * @see README.md#who-owns-what
- * @see features/admin-connection.feature
+ * @see features/connection.feature
  */
 class N8nSettingsForm extends ConfigFormBase {
 
